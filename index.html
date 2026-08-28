@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cafeat8 Market Test</title>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#1f2a20}
+  .wrap{max-width:720px;margin:auto;padding:18px}
+  h1{font-size:28px;margin:6px 0 18px}
+  .card{background:white;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  label{display:block;font-weight:700;margin-bottom:8px}
+  input{font-size:26px;width:100%;box-sizing:border-box;padding:13px;border:1px solid #bbb;border-radius:12px}
+  button{font-size:20px;font-weight:700;border:0;border-radius:13px;padding:14px 16px;margin:7px 4px 7px 0;background:#204e32;color:white}
+  button.secondary{background:#ddd;color:#222}
+  button.reward{background:#9a6b13}
+  .big{font-size:30px;font-weight:800}
+  .muted{color:#666}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .item{padding:10px 0;border-bottom:1px solid #eee}
+  #reader{width:100%;overflow:hidden;border-radius:14px}
+  .ok{background:#e8f6ea;padding:10px;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>☕ Cafeat8 Market Test</h1>
+
+  <div class="card">
+    <label>Customer number</label>
+    <input id="customer" inputmode="numeric" placeholder="e.g. 00824">
+    <div class="row">
+      <button onclick="openCustomer()">Open customer</button>
+      <button class="secondary" onclick="newCustomer()">New customer</button>
+    </div>
+    <div id="custStatus" class="muted">No customer selected</div>
+  </div>
+
+  <div class="card">
+    <div class="big">Fidelity: <span id="loyalty">0</span>/10</div>
+    <div id="rewardStatus" class="muted">No free bag available</div>
+  </div>
+
+  <div class="card">
+    <button onclick="startScanner()">📷 Scan coffee QR</button>
+    <button class="secondary" onclick="stopScanner()">Stop camera</button>
+    <div id="reader"></div>
+    <div id="scanStatus" class="muted">Expected QR text like: CAFEAT8|PRODUCT=HONDURAS</div>
+  </div>
+
+  <div class="card">
+    <h2>Current purchase</h2>
+    <div id="purchaseList" class="muted">No bags scanned</div>
+    <div class="row">
+      <button onclick="finishSale()">Finish paid sale</button>
+      <button class="reward" onclick="redeemReward()">Free bag / reward</button>
+      <button class="secondary" onclick="clearPurchase()">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Customer history</h2>
+    <div id="history" class="muted">Select a customer</div>
+  </div>
+</div>
+
+<script>
+let currentCustomer = null;
+let purchase = [];
+let scanner = null;
+
+function key(id){ return "cafeat8_customer_"+id; }
+
+function getData(id){
+  return JSON.parse(localStorage.getItem(key(id)) || '{"paid":0,"freeEarned":0,"freeUsed":0,"products":{},"history":[]}');
+}
+function saveData(id,d){ localStorage.setItem(key(id), JSON.stringify(d)); }
+
+function openCustomer(){
+  const id = document.getElementById('customer').value.trim();
+  if(!id){ alert("Enter customer number"); return; }
+  currentCustomer = id;
+  render();
+}
+function newCustomer(){
+  const id = document.getElementById('customer').value.trim();
+  if(!id){ alert("Enter a new customer number"); return; }
+  if(localStorage.getItem(key(id)) && !confirm("Customer already exists. Open it?")) return;
+  if(!localStorage.getItem(key(id))) saveData(id,getData(id));
+  currentCustomer=id; render();
+}
+function render(){
+  if(!currentCustomer) return;
+  const d=getData(currentCustomer);
+  const progress = d.paid % 10;
+  const available = Math.floor(d.paid/10)-d.freeUsed;
+  document.getElementById('custStatus').innerHTML = `<b>Customer ${currentCustomer}</b> · ${d.paid} paid bags total`;
+  document.getElementById('loyalty').textContent = progress;
+  document.getElementById('rewardStatus').innerHTML = available>0 ? `<div class="ok">🎁 ${available} free bag(s) available</div>` : "No free bag available";
+  const entries = Object.entries(d.products);
+  document.getElementById('history').innerHTML = entries.length
+    ? entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('') + `<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`
+    : "No purchases yet";
+  renderPurchase();
+}
+function parseProduct(text){
+  const t=(text||"").trim();
+  let m=t.match(/PRODUCT=([^|]+)/i);
+  if(!m) m=t.match(/P=([^|]+)/i);
+  if(m) return m[1].trim().toUpperCase();
+  return null;
+}
+function onScanSuccess(decodedText){
+  const product=parseProduct(decodedText);
+  if(!product){
+    document.getElementById('scanStatus').textContent="QR read, but not a Cafeat8 product: "+decodedText;
+    return;
+  }
+  purchase.push(product);
+  document.getElementById('scanStatus').textContent="✓ "+product+" added";
+  if(navigator.vibrate) navigator.vibrate(100);
+  renderPurchase();
+}
+function renderPurchase(){
+  const el=document.getElementById('purchaseList');
+  if(!purchase.length){ el.innerHTML="No bags scanned"; return; }
+  const counts={}; purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
+  el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+
+    `<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;
+}
+async function startScanner(){
+  if(scanner) return;
+  scanner = new Html5Qrcode("reader");
+  try{
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: {width:250,height:250} },
+      onScanSuccess,
+      ()=>{}
+    );
+  }catch(e){
+    alert("Camera could not start. On iPhone, allow Camera permission in Safari. "+e);
+    scanner=null;
+  }
+}
+async function stopScanner(){
+  if(scanner){
+    try{ await scanner.stop(); }catch(e){}
+    scanner.clear(); scanner=null;
+  }
+}
+function finishSale(){
+  if(!currentCustomer){ alert("Open a customer first"); return; }
+  if(!purchase.length){ alert("Scan at least one coffee bag"); return; }
+  const d=getData(currentCustomer);
+  d.paid += purchase.length;
+  purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);
+  d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});
+  saveData(currentCustomer,d);
+  purchase=[];
+  render();
+}
+function redeemReward(){
+  if(!currentCustomer){ alert("Open a customer first"); return; }
+  if(purchase.length!==1){ alert("For a reward, scan exactly 1 coffee bag."); return; }
+  const d=getData(currentCustomer);
+  const available=Math.floor(d.paid/10)-d.freeUsed;
+  if(available<1){ alert("This customer has no free bag available."); return; }
+  d.freeUsed += 1;
+  d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});
+  saveData(currentCustomer,d);
+  purchase=[];
+  render();
+}
+function clearPurchase(){ purchase=[]; renderPurchase(); }
+</script>
+</body>
+</html>
