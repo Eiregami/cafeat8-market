@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cafeat8 Market v5</title>
+<title>Cafeat8 Market v6</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
@@ -14,6 +14,7 @@ input{font-size:28px;width:100%;box-sizing:border-box;padding:14px;border:1px so
 button{font-size:21px;font-weight:750;border:0;border-radius:14px;padding:15px 17px;margin:7px 5px 7px 0;background:#205b36;color:white}
 button.secondary{background:#ddd;color:#222}
 button.reward{background:#9a6b13}
+button.sound{background:#1e6bb8}
 .big{font-size:32px;font-weight:850}
 .muted{color:#666}
 .row{display:flex;gap:8px;flex-wrap:wrap}
@@ -24,43 +25,28 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 .customer-banner{background:#e8f6ea;border:2px solid #2f7a49;border-radius:14px;padding:12px;font-size:24px;font-weight:800}
 .small{font-size:15px;color:#666}
 
-/* Celebration overlay */
-#celebrationOverlay{
-  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-  background:rgba(0,0,0,.10); z-index:9999; overflow:hidden;
-}
+#celebrationOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.10);z-index:9999;overflow:hidden}
 #celebrationOverlay.show{display:flex}
-.celebration-card{
-  background:white; border-radius:24px; padding:26px 20px; text-align:center;
-  box-shadow:0 16px 40px rgba(0,0,0,.18); max-width:86vw; position:relative; z-index:2;
-}
-.celebration-title{font-size:34px; font-weight:900; color:#205b36; margin-bottom:8px}
-.celebration-sub{font-size:22px; font-weight:800; margin-bottom:8px}
-.celebration-free{font-size:30px; font-weight:900; color:#9a6b13}
-
-.particle{
-  position:absolute; width:14px; height:14px; border-radius:50%;
-  animation:burst 1.8s ease-out forwards;
-  opacity:0.95;
-}
-.spark{
-  position:absolute; width:6px; height:28px; border-radius:999px;
-  transform-origin:center bottom;
-  animation:flash 1s ease-out forwards;
-}
-@keyframes burst{
-  0%{transform:translate(0,0) scale(.2); opacity:1}
-  100%{transform:translate(var(--dx),var(--dy)) scale(1.2); opacity:0}
-}
-@keyframes flash{
-  0%{transform:translate(0,0) rotate(var(--rot)) scaleY(.2); opacity:1}
-  100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scaleY(1); opacity:0}
-}
+.celebration-card{background:white;border-radius:24px;padding:26px 20px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.18);max-width:86vw;position:relative;z-index:2}
+.celebration-title{font-size:34px;font-weight:900;color:#205b36;margin-bottom:8px}
+.celebration-sub{font-size:22px;font-weight:800;margin-bottom:8px}
+.celebration-free{font-size:30px;font-weight:900;color:#9a6b13}
+.particle{position:absolute;width:14px;height:14px;border-radius:50%;animation:burst 1.8s ease-out forwards;opacity:.95}
+.spark{position:absolute;width:6px;height:28px;border-radius:999px;transform-origin:center bottom;animation:flash 1s ease-out forwards}
+@keyframes burst{0%{transform:translate(0,0) scale(.2);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0}}
+@keyframes flash{0%{transform:translate(0,0) rotate(var(--rot)) scaleY(.2);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scaleY(1);opacity:0}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v5</h1>
+<h1>☕ Cafeat8 Market v6</h1>
+
+<div class="card">
+<div class="row">
+<button class="sound" onclick="enableSound()">🔊 Enable sound</button>
+</div>
+<div id="soundStatus" class="muted">On iPhone, tap once to enable reward sound.</div>
+</div>
 
 <div class="card">
 <label><b>Customer number</b></label>
@@ -105,215 +91,110 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 <div id="celebrationOverlay" onclick="hideCelebration()">
   <div class="celebration-card">
     <div class="celebration-title">🎉 Reward unlocked!</div>
-    <div class="celebration-sub" id="celebrationCustomer">Customer 00000</div>
+    <div class="celebration-sub" id="celebrationCustomer">Customer</div>
     <div class="celebration-free">1 FREE BAG earned ☕</div>
     <div class="small">Tap anywhere to close</div>
   </div>
 </div>
 
 <script>
-let currentCustomer=null;
-let purchase=[];
-let controls=null;
-let lastText="";
-let lastTime=0;
+let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0;
+let audioCtx=null, soundEnabled=false;
 
 const key=id=>"cafeat8_customer_"+id;
 const getData=id=>JSON.parse(localStorage.getItem(key(id))||'{"paid":0,"freeUsed":0,"products":{},"history":[]}');
 const saveData=(id,d)=>localStorage.setItem(key(id),JSON.stringify(d));
 
-function selectCustomer(){
- const id=document.getElementById('customer').value.trim();
- if(!id){alert("Enter customer number first");return;}
- if(!localStorage.getItem(key(id))) saveData(id,getData(id));
- currentCustomer=id;
- render();
-}
-function clearCustomer(){
- currentCustomer=null;
- document.getElementById('customer').value="";
- document.getElementById('custStatus').innerHTML="No customer selected";
- document.getElementById('loyalty').textContent="0";
- document.getElementById('rewardStatus').textContent="No free bag available";
- document.getElementById('history').textContent="Select a customer";
-}
-function render(){
- if(!currentCustomer)return;
- const d=getData(currentCustomer);
- const progress=d.paid%10;
- const available=Math.floor(d.paid/10)-d.freeUsed;
- document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div class="small">${d.paid} paid bags total</div>`;
- document.getElementById('loyalty').textContent=progress;
- document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";
- const entries=Object.entries(d.products);
- document.getElementById('history').innerHTML=entries.length?entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";
- renderPurchase();
-}
-
-function productFromText(t){
- t=(t||"").trim();
- let m=t.match(/PRODUCT=([^|]+)/i)||t.match(/P=([^|]+)/i);
- if(m)return m[1].trim().toUpperCase();
- const map={
-  "/3-brazil-medium-1/":"BRAZIL",
-  "/14-peru/":"PERU",
-  "/21-mexico/":"MEXICO",
-  "/6-sumatra/":"SUMATRA",
-  "/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY",
-  "/12-robusta-coffee/":"ROBUSTA",
-  "/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO",
-  "/10-decaffeinated-coffee/":"DECAFFEINATED"
- };
- for(const [part,name] of Object.entries(map)){if(t.includes(part))return name;}
- return null;
-}
-
-async function startScanner(){
- if(!currentCustomer){alert("First enter and open a customer number.");return;}
- if(controls)return;
+async function enableSound(){
  try{
-   const reader=new ZXingBrowser.BrowserQRCodeReader();
-   controls=await reader.decodeFromConstraints(
-     {video:{facingMode:{ideal:"environment"}}},
-     document.getElementById('video'),
-     (result)=>{
-       if(!result)return;
-       const text=result.getText();
-       const now=Date.now();
-       if(text===lastText && now-lastTime<2000)return;
-       lastText=text; lastTime=now;
-       const product=productFromText(text);
-       if(!product){
-         document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;
-         return;
-       }
-       purchase.push(product);
-       document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;
-       renderPurchase();
-       stopScanner();
-     }
-   );
-   document.getElementById('scanStatus').textContent="Scanner active — point camera at ONE coffee QR.";
+   const AudioCtx=window.AudioContext||window.webkitAudioContext;
+   if(!audioCtx) audioCtx=new AudioCtx();
+   if(audioCtx.state==="suspended") await audioCtx.resume();
+   soundEnabled=true;
+   document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';
+   playTestSound();
  }catch(e){
-   document.getElementById('scanStatus').innerHTML='<div class="warn">Camera could not start. Use Safari and allow Camera access.</div>';
-   controls=null;
+   document.getElementById('soundStatus').innerHTML='<div class="warn">Sound could not be enabled. Check iPhone volume and silent switch.</div>';
  }
 }
 
-function stopScanner(){
- if(controls){try{controls.stop();}catch(e){} controls=null;}
- const v=document.getElementById('video');
- if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
+function playTestSound(){
+ if(!audioCtx || audioCtx.state!=="running") return;
+ const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+ osc.type='sine'; osc.frequency.value=660;
+ gain.gain.setValueAtTime(.0001,audioCtx.currentTime);
+ gain.gain.exponentialRampToValueAtTime(.08,audioCtx.currentTime+.02);
+ gain.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.18);
+ osc.connect(gain).connect(audioCtx.destination);
+ osc.start(); osc.stop(audioCtx.currentTime+.2);
 }
 
-function renderPurchase(){
- const el=document.getElementById('purchaseList');
- if(!purchase.length){el.innerHTML="No bags scanned";return;}
- const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
- el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;
-}
+function selectCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number first");if(!localStorage.getItem(key(id)))saveData(id,getData(id));currentCustomer=id;render();}
+function clearCustomer(){currentCustomer=null;document.getElementById('customer').value="";document.getElementById('custStatus').innerHTML="No customer selected";document.getElementById('loyalty').textContent="0";document.getElementById('rewardStatus').textContent="No free bag available";document.getElementById('history').textContent="Select a customer";}
+function render(){if(!currentCustomer)return;const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div class="small">${d.paid} paid bags total</div>`;document.getElementById('loyalty').textContent=progress;document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";const entries=Object.entries(d.products);document.getElementById('history').innerHTML=entries.length?entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";renderPurchase();}
+
+function productFromText(t){t=(t||"").trim();let m=t.match(/PRODUCT=([^|]+)/i)||t.match(/P=([^|]+)/i);if(m)return m[1].trim().toUpperCase();const map={"/3-brazil-medium-1/":"BRAZIL","/14-peru/":"PERU","/21-mexico/":"MEXICO","/6-sumatra/":"SUMATRA","/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY","/12-robusta-coffee/":"ROBUSTA","/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO","/10-decaffeinated-coffee/":"DECAFFEINATED"};for(const [part,name] of Object.entries(map)){if(t.includes(part))return name;}return null;}
+
+async function startScanner(){if(!currentCustomer)return alert("First enter and open a customer number.");if(controls)return;try{const reader=new ZXingBrowser.BrowserQRCodeReader();controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById('video'),(result)=>{if(!result)return;const text=result.getText(),now=Date.now();if(text===lastText&&now-lastTime<2000)return;lastText=text;lastTime=now;const product=productFromText(text);if(!product){document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}purchase.push(product);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;renderPurchase();stopScanner();});document.getElementById('scanStatus').textContent="Scanner active — point camera at ONE coffee QR.";}catch(e){document.getElementById('scanStatus').innerHTML='<div class="warn">Camera could not start. Use Safari and allow Camera access.</div>';controls=null;}}
+function stopScanner(){if(controls){try{controls.stop();}catch(e){}controls=null;}const v=document.getElementById('video');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}}
+function renderPurchase(){const el=document.getElementById('purchaseList');if(!purchase.length){el.innerHTML="No bags scanned";return;}const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;}
 
 function finishSale(){
- if(!currentCustomer){alert("Open a customer first");return;}
- if(!purchase.length){alert("Scan at least one coffee bag");return;}
+ if(!currentCustomer)return alert("Open a customer first");
+ if(!purchase.length)return alert("Scan at least one coffee bag");
  const d=getData(currentCustomer);
- const rewardsBefore = Math.floor(d.paid/10);
- d.paid += purchase.length;
+ const rewardsBefore=Math.floor(d.paid/10);
+ d.paid+=purchase.length;
  purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);
  d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});
  saveData(currentCustomer,d);
- const rewardsAfter = Math.floor(d.paid/10);
- const newRewards = rewardsAfter - rewardsBefore;
+ const newRewards=Math.floor(d.paid/10)-rewardsBefore;
  purchase=[];
  document.getElementById('scanStatus').textContent="Sale saved.";
  render();
- if(newRewards > 0){
-   celebrateReward(currentCustomer, newRewards);
- }
+ if(newRewards>0) celebrateReward(currentCustomer,newRewards);
 }
 
-function redeemReward(){
- if(!currentCustomer){alert("Open a customer first");return;}
- if(purchase.length!==1){alert("For a free bag, scan exactly one coffee bag.");return;}
- const d=getData(currentCustomer);
- const available=Math.floor(d.paid/10)-d.freeUsed;
- if(available<1){alert("This customer has no free bag available.");return;}
- d.freeUsed++;
- d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});
- saveData(currentCustomer,d);
- purchase=[];
- document.getElementById('scanStatus').textContent="Free bag recorded.";
- render();
-}
+function redeemReward(){if(!currentCustomer)return alert("Open a customer first");if(purchase.length!==1)return alert("For a free bag, scan exactly one coffee bag.");const d=getData(currentCustomer),available=Math.floor(d.paid/10)-d.freeUsed;if(available<1)return alert("This customer has no free bag available.");d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);purchase=[];document.getElementById('scanStatus').textContent="Free bag recorded.";render();}
 function clearPurchase(){purchase=[];renderPurchase();}
 
-function celebrateReward(customerId, count){
-  document.getElementById('celebrationCustomer').textContent = `Customer ${customerId} earned ${count} FREE BAG${count>1?'S':''}!`;
-  const overlay = document.getElementById('celebrationOverlay');
-  overlay.classList.add('show');
-  createFireworks();
-  playRewardSound();
-  setTimeout(hideCelebration, 3200);
+function celebrateReward(customerId,count){
+ document.getElementById('celebrationCustomer').textContent=`Customer ${customerId} earned ${count} FREE BAG${count>1?'S':''}!`;
+ document.getElementById('celebrationOverlay').classList.add('show');
+ createFireworks();
+ playRewardSound();
+ setTimeout(hideCelebration,3400);
 }
-
-function hideCelebration(){
-  const overlay = document.getElementById('celebrationOverlay');
-  overlay.classList.remove('show');
-  const particles = overlay.querySelectorAll('.particle, .spark');
-  particles.forEach(p=>p.remove());
-}
+function hideCelebration(){const overlay=document.getElementById('celebrationOverlay');overlay.classList.remove('show');overlay.querySelectorAll('.particle,.spark').forEach(p=>p.remove());}
 
 function createFireworks(){
-  const overlay = document.getElementById('celebrationOverlay');
-  const colors = ['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];
-  const bursts = [
-    {x: '18%', y:'24%'}, {x:'82%', y:'24%'}, {x:'22%', y:'74%'}, {x:'78%', y:'74%'}, {x:'50%', y:'18%'}
-  ];
-  bursts.forEach((b, idx)=>{
-    for(let i=0;i<18;i++){
-      const p = document.createElement('div');
-      p.className='particle';
-      p.style.left=b.x; p.style.top=b.y;
-      p.style.background=colors[(i+idx)%colors.length];
-      const angle=(Math.PI*2*i)/18;
-      const dist=70+Math.random()*85;
-      p.style.setProperty('--dx', `${Math.cos(angle)*dist}px`);
-      p.style.setProperty('--dy', `${Math.sin(angle)*dist}px`);
-      p.style.animationDelay=`${idx*0.08}s`;
-      overlay.appendChild(p);
-    }
-    for(let i=0;i<10;i++){
-      const s = document.createElement('div');
-      s.className='spark';
-      s.style.left=b.x; s.style.top=b.y;
-      s.style.background=colors[(i+idx*2)%colors.length];
-      s.style.setProperty('--rot', `${i*36}deg`);
-      s.style.setProperty('--dx', `${Math.cos((Math.PI*2*i)/10)*(35+Math.random()*45)}px`);
-      s.style.setProperty('--dy', `${Math.sin((Math.PI*2*i)/10)*(35+Math.random()*45)}px`);
-      s.style.animationDelay=`${idx*0.08}s`;
-      overlay.appendChild(s);
-    }
-  });
+ const overlay=document.getElementById('celebrationOverlay');
+ const colors=['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];
+ const bursts=[{x:'18%',y:'24%'},{x:'82%',y:'24%'},{x:'22%',y:'74%'},{x:'78%',y:'74%'},{x:'50%',y:'18%'}];
+ bursts.forEach((b,idx)=>{
+   for(let i=0;i<18;i++){
+     const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];
+     const angle=Math.PI*2*i/18,dist=70+Math.random()*85;
+     p.style.setProperty('--dx',`${Math.cos(angle)*dist}px`);p.style.setProperty('--dy',`${Math.sin(angle)*dist}px`);p.style.animationDelay=`${idx*.08}s`;overlay.appendChild(p);
+   }
+ });
 }
 
 function playRewardSound(){
-  try{
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-    const notes = [523.25, 659.25, 783.99, 1046.50];
-    notes.forEach((freq, i)=>{
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type='triangle';
-      osc.frequency.value=freq;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime + i*0.12);
-      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + i*0.12 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i*0.12 + 0.22);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(ctx.currentTime + i*0.12);
-      osc.stop(ctx.currentTime + i*0.12 + 0.24);
-    });
-  }catch(e){}
+ if(!audioCtx || !soundEnabled) return;
+ if(audioCtx.state==="suspended") audioCtx.resume();
+ const start=audioCtx.currentTime+.02;
+ const notes=[523.25,659.25,783.99,1046.5,1318.5];
+ notes.forEach((freq,i)=>{
+   const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+   osc.type=i<3?'triangle':'sine';osc.frequency.value=freq;
+   const t=start+i*.13;
+   gain.gain.setValueAtTime(.0001,t);
+   gain.gain.exponentialRampToValueAtTime(.16,t+.025);
+   gain.gain.exponentialRampToValueAtTime(.0001,t+.28);
+   osc.connect(gain).connect(audioCtx.destination);
+   osc.start(t);osc.stop(t+.30);
+ });
 }
 </script>
 </body>
