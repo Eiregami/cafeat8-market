@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cafeat8 Market v8</title>
+<title>Cafeat8 Market v9</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
@@ -50,7 +50,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v8</h1>
+<h1>☕ Cafeat8 Market v9</h1>
 
 <div class="card">
 <div class="tabs">
@@ -145,7 +145,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 <button onclick="changeQty(5)">+5</button>
 </div>
 <div class="row">
-<button class="inventory" onclick="addInventoryQuantity()">Add quantity</button>
+<button id="addQtyBtn" class="inventory" onclick="addInventoryQuantity()">Add to Morning Stock</button>
 <button class="secondary" onclick="resetInventorySelection()">Clear selection</button>
 </div>
 </div>
@@ -317,6 +317,8 @@ function setInventoryMode(mode){
  document.getElementById('morningBtn').classList.toggle('active',mode==='morning');
  document.getElementById('eveningBtn').classList.toggle('active',mode==='evening');
  document.getElementById('inventoryModeText').textContent=mode==='morning'?"Scanning for morning stock.":"Scanning for evening remaining stock.";
+ const btn=document.getElementById('addQtyBtn');
+ if(btn) btn.textContent=mode==='morning'?"Add to Morning Stock":"Add to Evening Stock";
  renderInventoryCurrent();
 }
 function startInventoryScanner(){
@@ -332,21 +334,24 @@ function startInventoryScanner(){
 }
 function changeQty(delta){inventoryQty=Math.max(1,inventoryQty+delta);document.getElementById('inventoryQty').textContent=inventoryQty;}
 function resetInventorySelection(){inventoryProduct=null;inventoryQty=1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent="1";}
-function addInventoryQuantity(){
- if(!inventoryProduct)return alert("Scan a coffee QR first");
+function commitPendingInventory(){
+ if(!inventoryProduct) return false;
  const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
- target[inventoryProduct]=(target[inventoryProduct]||0)+inventoryQty;
-
- // Auto-save so the morning count cannot be lost accidentally.
+ const addedProduct=inventoryProduct, addedQty=inventoryQty;
+ target[addedProduct]=(target[addedProduct]||0)+addedQty;
+ resetInventorySelection();
  if(inventoryMode==='morning'){
    saveMorning(true);
  } else {
    saveEveningDraft();
  }
-
+ document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">${addedQty} × ${addedProduct} added to ${inventoryMode} stock.</div>`;
  renderInventoryCurrent();
- document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">${inventoryQty} × ${inventoryProduct} added to ${inventoryMode} stock.</div>`;
- resetInventorySelection();
+ return true;
+}
+function addInventoryQuantity(){
+ if(!inventoryProduct)return alert("Scan a coffee QR first");
+ commitPendingInventory();
 }
 function renderInventoryCurrent(){
  const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
@@ -362,6 +367,13 @@ function marketKey(){
  return `cafeat8_market_${date}_${loc}`;
 }
 function saveMorning(silent=false){
+ if(inventoryMode==='morning' && inventoryProduct){
+   const target=inventoryMorning;
+   target[inventoryProduct]=(target[inventoryProduct]||0)+inventoryQty;
+   document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">${inventoryQty} × ${inventoryProduct} added automatically to morning stock.</div>`;
+   resetInventorySelection();
+   renderInventoryCurrent();
+ }
  if(Object.keys(inventoryMorning).length===0){
    if(!silent) alert("Enter morning stock first");
    return false;
@@ -393,6 +405,13 @@ function switchToEvening(){
  document.getElementById('inventoryScanStatus').innerHTML='<div class="ok">Morning stock saved. Now enter the bags remaining at the end of the market.</div>';
 }
 function finishMarket(){
+ if(inventoryMode==='evening' && inventoryProduct){
+   const addedProduct=inventoryProduct, addedQty=inventoryQty;
+   inventoryEvening[addedProduct]=(inventoryEvening[addedProduct]||0)+addedQty;
+   resetInventorySelection();
+   saveEveningDraft();
+   renderInventoryCurrent();
+ }
  if(Object.keys(inventoryMorning).length===0){
    const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
    if(saved.morning) inventoryMorning=saved.morning;
