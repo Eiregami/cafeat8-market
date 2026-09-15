@@ -3,27 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cafeat8 Market Test v3</title>
+<title>Cafeat8 Market v4</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#1f2a20}
-.wrap{max-width:720px;margin:auto;padding:18px}.card{background:white;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-input{font-size:26px;width:100%;box-sizing:border-box;padding:13px;border:1px solid #bbb;border-radius:12px}
-button{font-size:20px;font-weight:700;border:0;border-radius:13px;padding:14px 16px;margin:7px 4px 7px 0;background:#204e32;color:white}
-.secondary{background:#ddd;color:#222}.reward{background:#9a6b13}.big{font-size:30px;font-weight:800}.muted{color:#666}.row{display:flex;gap:8px;flex-wrap:wrap}
-.item{padding:10px 0;border-bottom:1px solid #eee}video{width:100%;border-radius:14px;background:#111;max-height:440px}.ok{background:#e8f6ea;padding:10px;border-radius:10px}.warn{background:#fff3cd;padding:10px;border-radius:10px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
+.wrap{max-width:720px;margin:auto;padding:18px}
+h1{font-size:30px;margin:8px 0 18px}
+.card{background:#fff;border-radius:20px;padding:16px;margin:14px 0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+input{font-size:28px;width:100%;box-sizing:border-box;padding:14px;border:1px solid #bbb;border-radius:14px}
+button{font-size:21px;font-weight:750;border:0;border-radius:14px;padding:15px 17px;margin:7px 5px 7px 0;background:#205b36;color:white}
+button.secondary{background:#ddd;color:#222}
+button.reward{background:#9a6b13}
+.big{font-size:32px;font-weight:850}
+.muted{color:#666}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.item{padding:11px 0;border-bottom:1px solid #eee}
+video{width:100%;border-radius:14px;background:#111;max-height:420px}
+.ok{background:#e8f6ea;padding:12px;border-radius:12px}
+.warn{background:#fff3cd;padding:12px;border-radius:12px}
+.customer-banner{background:#e8f6ea;border:2px solid #2f7a49;border-radius:14px;padding:12px;font-size:24px;font-weight:800}
+.small{font-size:15px;color:#666}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market Test v3</h1>
+<h1>☕ Cafeat8 Market v4</h1>
 
 <div class="card">
-<label>Customer number</label>
+<label><b>Customer number</b></label>
 <input id="customer" inputmode="numeric" placeholder="e.g. 00824">
 <div class="row">
-<button onclick="openCustomer()">Open customer</button>
-<button class="secondary" onclick="newCustomer()">New customer</button>
+<button onclick="selectCustomer()">Open / create customer</button>
+<button class="secondary" onclick="clearCustomer()">Clear</button>
 </div>
 <div id="custStatus" class="muted">No customer selected</div>
 </div>
@@ -35,11 +46,11 @@ button{font-size:20px;font-weight:700;border:0;border-radius:13px;padding:14px 1
 
 <div class="card">
 <div class="row">
-<button onclick="startScanner()">📷 Start QR scanner</button>
+<button onclick="startScanner()">📷 Scan one coffee bag</button>
 <button class="secondary" onclick="stopScanner()">Stop camera</button>
 </div>
 <video id="video" playsinline muted></video>
-<div id="scanStatus" class="muted">Ready to scan a Cafeat8 coffee QR.</div>
+<div id="scanStatus" class="muted">Ready to scan a coffee QR.</div>
 </div>
 
 <div class="card">
@@ -47,8 +58,8 @@ button{font-size:20px;font-weight:700;border:0;border-radius:13px;padding:14px 1
 <div id="purchaseList" class="muted">No bags scanned</div>
 <div class="row">
 <button onclick="finishSale()">Finish paid sale</button>
-<button class="reward" onclick="redeemReward()">Free bag / reward</button>
-<button class="secondary" onclick="clearPurchase()">Clear</button>
+<button class="reward" onclick="redeemReward()">Use free bag</button>
+<button class="secondary" onclick="clearPurchase()">Clear purchase</button>
 </div>
 </div>
 
@@ -59,18 +70,37 @@ button{font-size:20px;font-weight:700;border:0;border-radius:13px;padding:14px 1
 </div>
 
 <script>
-let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0;
+let currentCustomer=null;
+let purchase=[];
+let controls=null;
+let lastText="";
+let lastTime=0;
+
 const key=id=>"cafeat8_customer_"+id;
 const getData=id=>JSON.parse(localStorage.getItem(key(id))||'{"paid":0,"freeUsed":0,"products":{},"history":[]}');
 const saveData=(id,d)=>localStorage.setItem(key(id),JSON.stringify(d));
 
-function openCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number");currentCustomer=id;render();}
-function newCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter a new customer number");if(!localStorage.getItem(key(id)))saveData(id,getData(id));currentCustomer=id;render();}
-
+function selectCustomer(){
+ const id=document.getElementById('customer').value.trim();
+ if(!id){alert("Enter customer number first");return;}
+ if(!localStorage.getItem(key(id))) saveData(id,getData(id));
+ currentCustomer=id;
+ render();
+}
+function clearCustomer(){
+ currentCustomer=null;
+ document.getElementById('customer').value="";
+ document.getElementById('custStatus').innerHTML="No customer selected";
+ document.getElementById('loyalty').textContent="0";
+ document.getElementById('rewardStatus').textContent="No free bag available";
+ document.getElementById('history').textContent="Select a customer";
+}
 function render(){
  if(!currentCustomer)return;
- const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;
- document.getElementById('custStatus').innerHTML=`<b>Customer ${currentCustomer}</b> · ${d.paid} paid bags total`;
+ const d=getData(currentCustomer);
+ const progress=d.paid%10;
+ const available=Math.floor(d.paid/10)-d.freeUsed;
+ document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div class="small">${d.paid} paid bags total</div>`;
  document.getElementById('loyalty').textContent=progress;
  document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";
  const entries=Object.entries(d.products);
@@ -82,39 +112,91 @@ function productFromText(t){
  t=(t||"").trim();
  let m=t.match(/PRODUCT=([^|]+)/i)||t.match(/P=([^|]+)/i);
  if(m)return m[1].trim().toUpperCase();
- const map={"/3-brazil-medium-1/":"BRAZIL","/14-peru/":"PERU","/21-mexico/":"MEXICO","/6-sumatra/":"SUMATRA","/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY","/12-robusta-coffee/":"ROBUSTA","/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO","/10-decaffeinated-coffee/":"DECAFFEINATED"};
- for(const [part,name] of Object.entries(map))if(t.includes(part))return name;
+ const map={
+  "/3-brazil-medium-1/":"BRAZIL",
+  "/14-peru/":"PERU",
+  "/21-mexico/":"MEXICO",
+  "/6-sumatra/":"SUMATRA",
+  "/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY",
+  "/12-robusta-coffee/":"ROBUSTA",
+  "/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO",
+  "/10-decaffeinated-coffee/":"DECAFFEINATED"
+ };
+ for(const [part,name] of Object.entries(map)){if(t.includes(part))return name;}
  return null;
 }
 
-function acceptScan(text){
- const now=Date.now();if(text===lastText&&now-lastTime<1800)return;lastText=text;lastTime=now;
- const product=productFromText(text);
- if(!product){document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}
- purchase.push(product);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;renderPurchase();
-}
-
-function renderPurchase(){
- const el=document.getElementById('purchaseList');if(!purchase.length){el.innerHTML="No bags scanned";return;}
- const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
- el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;
-}
-
 async function startScanner(){
+ if(!currentCustomer){alert("First enter and open a customer number.");return;}
  if(controls)return;
  try{
    const reader=new ZXingBrowser.BrowserQRCodeReader();
-   controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById('video'),(result)=>{if(result)acceptScan(result.getText());});
-   document.getElementById('scanStatus').textContent="Scanner active — point the camera at the QR code.";
+   controls=await reader.decodeFromConstraints(
+     {video:{facingMode:{ideal:"environment"}}},
+     document.getElementById('video'),
+     (result)=>{
+       if(!result)return;
+       const text=result.getText();
+       const now=Date.now();
+       if(text===lastText && now-lastTime<2000)return;
+       lastText=text; lastTime=now;
+       const product=productFromText(text);
+       if(!product){
+         document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;
+         return;
+       }
+       purchase.push(product);
+       document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;
+       renderPurchase();
+       stopScanner(); // one scan = one bag
+     }
+   );
+   document.getElementById('scanStatus').textContent="Scanner active — point camera at ONE coffee QR.";
  }catch(e){
-   document.getElementById('scanStatus').innerHTML='<div class="warn">Camera could not start. Open this page in Safari and allow Camera access.</div>';
+   document.getElementById('scanStatus').innerHTML='<div class="warn">Camera could not start. Use Safari and allow Camera access.</div>';
    controls=null;
  }
 }
 
-function stopScanner(){if(controls){controls.stop();controls=null;}const v=document.getElementById('video');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}}
-function finishSale(){if(!currentCustomer)return alert("Open a customer first");if(!purchase.length)return alert("Scan at least one coffee bag");const d=getData(currentCustomer);d.paid+=purchase.length;purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});saveData(currentCustomer,d);purchase=[];render();}
-function redeemReward(){if(!currentCustomer)return alert("Open a customer first");if(purchase.length!==1)return alert("For a reward, scan exactly 1 coffee bag.");const d=getData(currentCustomer),available=Math.floor(d.paid/10)-d.freeUsed;if(available<1)return alert("This customer has no free bag available.");d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);purchase=[];render();}
+function stopScanner(){
+ if(controls){try{controls.stop();}catch(e){} controls=null;}
+ const v=document.getElementById('video');
+ if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
+}
+
+function renderPurchase(){
+ const el=document.getElementById('purchaseList');
+ if(!purchase.length){el.innerHTML="No bags scanned";return;}
+ const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
+ el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;
+}
+
+function finishSale(){
+ if(!currentCustomer){alert("Open a customer first");return;}
+ if(!purchase.length){alert("Scan at least one coffee bag");return;}
+ const d=getData(currentCustomer);
+ d.paid+=purchase.length;
+ purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);
+ d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});
+ saveData(currentCustomer,d);
+ purchase=[];
+ document.getElementById('scanStatus').textContent="Sale saved.";
+ render();
+}
+
+function redeemReward(){
+ if(!currentCustomer){alert("Open a customer first");return;}
+ if(purchase.length!==1){alert("For a free bag, scan exactly one coffee bag.");return;}
+ const d=getData(currentCustomer);
+ const available=Math.floor(d.paid/10)-d.freeUsed;
+ if(available<1){alert("This customer has no free bag available.");return;}
+ d.freeUsed++;
+ d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});
+ saveData(currentCustomer,d);
+ purchase=[];
+ document.getElementById('scanStatus').textContent="Free bag recorded.";
+ render();
+}
 function clearPurchase(){purchase=[];renderPurchase();}
 </script>
 </body>
