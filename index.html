@@ -3,19 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cafeat8 Market v6</title>
+<title>Cafeat8 Market v7</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
-.wrap{max-width:720px;margin:auto;padding:18px}
+.wrap{max-width:760px;margin:auto;padding:18px}
 h1{font-size:30px;margin:8px 0 18px}
+h2{margin-top:4px}
 .card{background:#fff;border-radius:20px;padding:16px;margin:14px 0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
-input{font-size:28px;width:100%;box-sizing:border-box;padding:14px;border:1px solid #bbb;border-radius:14px}
-button{font-size:21px;font-weight:750;border:0;border-radius:14px;padding:15px 17px;margin:7px 5px 7px 0;background:#205b36;color:white}
+input,select{font-size:24px;width:100%;box-sizing:border-box;padding:13px;border:1px solid #bbb;border-radius:14px;background:white}
+button{font-size:20px;font-weight:750;border:0;border-radius:14px;padding:14px 16px;margin:7px 5px 7px 0;background:#205b36;color:white}
 button.secondary{background:#ddd;color:#222}
 button.reward{background:#9a6b13}
 button.sound{background:#1e6bb8}
-.big{font-size:32px;font-weight:850}
+button.inventory{background:#7b4d16}
+button.mode{background:#e8e8e8;color:#222}
+button.mode.active{background:#205b36;color:white}
+.big{font-size:31px;font-weight:850}
 .muted{color:#666}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .item{padding:11px 0;border-bottom:1px solid #eee}
@@ -24,7 +28,16 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 .warn{background:#fff3cd;padding:12px;border-radius:12px}
 .customer-banner{background:#e8f6ea;border:2px solid #2f7a49;border-radius:14px;padding:12px;font-size:24px;font-weight:800}
 .small{font-size:15px;color:#666}
-
+.tabs{display:flex;gap:8px;margin-bottom:10px}
+.tab{flex:1;background:#ddd;color:#222}
+.tab.active{background:#205b36;color:white}
+.panel{display:none}.panel.active{display:block}
+.qtybox{display:flex;align-items:center;gap:12px;margin-top:10px}
+.qtybox button{font-size:28px;min-width:56px}
+.qtyvalue{font-size:34px;font-weight:900;min-width:64px;text-align:center}
+.product-name{font-size:26px;font-weight:900}
+.summary-grid{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center}
+.summary-head{font-weight:800;border-bottom:2px solid #ddd;padding-bottom:6px}
 #celebrationOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.10);z-index:9999;overflow:hidden}
 #celebrationOverlay.show{display:flex}
 .celebration-card{background:white;border-radius:24px;padding:26px 20px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.18);max-width:86vw;position:relative;z-index:2}
@@ -32,19 +45,24 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 .celebration-sub{font-size:22px;font-weight:800;margin-bottom:8px}
 .celebration-free{font-size:30px;font-weight:900;color:#9a6b13}
 .particle{position:absolute;width:14px;height:14px;border-radius:50%;animation:burst 1.8s ease-out forwards;opacity:.95}
-.spark{position:absolute;width:6px;height:28px;border-radius:999px;transform-origin:center bottom;animation:flash 1s ease-out forwards}
 @keyframes burst{0%{transform:translate(0,0) scale(.2);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0}}
-@keyframes flash{0%{transform:translate(0,0) rotate(var(--rot)) scaleY(.2);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scaleY(1);opacity:0}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v6</h1>
+<h1>☕ Cafeat8 Market v7</h1>
 
 <div class="card">
-<div class="row">
-<button class="sound" onclick="enableSound()">🔊 Enable sound</button>
+<div class="tabs">
+<button id="tabSales" class="tab active" onclick="showPanel('sales')">Customer / Fidelity</button>
+<button id="tabInventory" class="tab" onclick="showPanel('inventory')">Market Inventory</button>
 </div>
+</div>
+
+<div id="salesPanel" class="panel active">
+
+<div class="card">
+<button class="sound" onclick="enableSound()">🔊 Enable sound</button>
 <div id="soundStatus" class="muted">On iPhone, tap once to enable reward sound.</div>
 </div>
 
@@ -64,11 +82,9 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 </div>
 
 <div class="card">
-<div class="row">
-<button onclick="startScanner()">📷 Scan one coffee bag</button>
+<button onclick="startSalesScanner()">📷 Scan one coffee bag</button>
 <button class="secondary" onclick="stopScanner()">Stop camera</button>
-</div>
-<video id="video" playsinline muted></video>
+<video id="videoSales" playsinline muted></video>
 <div id="scanStatus" class="muted">Ready to scan a coffee QR.</div>
 </div>
 
@@ -86,6 +102,70 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 <h2>Customer history</h2>
 <div id="history" class="muted">Select a customer</div>
 </div>
+
+</div>
+
+<div id="inventoryPanel" class="panel">
+
+<div class="card">
+<h2>Market</h2>
+<label>Date</label>
+<input id="marketDate" type="date">
+<label style="margin-top:10px">Location</label>
+<select id="marketLocation">
+<option value="Antwerp">Antwerp</option>
+<option value="Brussels">Brussels</option>
+<option value="Other">Other</option>
+</select>
+</div>
+
+<div class="card">
+<h2>Inventory mode</h2>
+<div class="row">
+<button id="morningBtn" class="mode active" onclick="setInventoryMode('morning')">🌅 Morning stock</button>
+<button id="eveningBtn" class="mode" onclick="setInventoryMode('evening')">🌙 Evening stock</button>
+</div>
+<div id="inventoryModeText" class="muted">Scanning for morning stock.</div>
+</div>
+
+<div class="card">
+<button class="inventory" onclick="startInventoryScanner()">📷 Scan coffee QR</button>
+<button class="secondary" onclick="stopScanner()">Stop camera</button>
+<video id="videoInventory" playsinline muted></video>
+<div id="inventoryScanStatus" class="muted">Scan one product QR, then choose quantity.</div>
+</div>
+
+<div class="card">
+<h2>Selected product</h2>
+<div id="inventoryProduct" class="product-name">No product scanned</div>
+<div class="qtybox">
+<button class="secondary" onclick="changeQty(-1)">−</button>
+<div id="inventoryQty" class="qtyvalue">1</div>
+<button onclick="changeQty(1)">+</button>
+<button onclick="changeQty(5)">+5</button>
+</div>
+<div class="row">
+<button class="inventory" onclick="addInventoryQuantity()">Add quantity</button>
+<button class="secondary" onclick="resetInventorySelection()">Clear selection</button>
+</div>
+</div>
+
+<div class="card">
+<h2>Current market count</h2>
+<div id="inventoryCurrent" class="muted">No inventory entered yet.</div>
+<div class="row">
+<button onclick="saveMorning()">Save Morning Stock</button>
+<button class="reward" onclick="finishMarket()">Finish Market</button>
+<button class="secondary" onclick="clearInventoryDay()">Clear Day</button>
+</div>
+</div>
+
+<div class="card">
+<h2>Market result</h2>
+<div id="marketResult" class="muted">Morning and evening counts are needed.</div>
+</div>
+
+</div>
 </div>
 
 <div id="celebrationOverlay" onclick="hideCelebration()">
@@ -99,11 +179,21 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 
 <script>
 let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0;
-let audioCtx=null, soundEnabled=false;
+let audioCtx=null,soundEnabled=false;
+let inventoryMode="morning", inventoryProduct=null, inventoryQty=1;
+let inventoryMorning={}, inventoryEvening={};
 
 const key=id=>"cafeat8_customer_"+id;
 const getData=id=>JSON.parse(localStorage.getItem(key(id))||'{"paid":0,"freeUsed":0,"products":{},"history":[]}');
 const saveData=(id,d)=>localStorage.setItem(key(id),JSON.stringify(d));
+
+function showPanel(name){
+ document.getElementById('salesPanel').classList.toggle('active',name==='sales');
+ document.getElementById('inventoryPanel').classList.toggle('active',name==='inventory');
+ document.getElementById('tabSales').classList.toggle('active',name==='sales');
+ document.getElementById('tabInventory').classList.toggle('active',name==='inventory');
+ stopScanner();
+}
 
 async function enableSound(){
  try{
@@ -114,88 +204,208 @@ async function enableSound(){
    document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';
    playTestSound();
  }catch(e){
-   document.getElementById('soundStatus').innerHTML='<div class="warn">Sound could not be enabled. Check iPhone volume and silent switch.</div>';
+   document.getElementById('soundStatus').innerHTML='<div class="warn">Sound could not be enabled.</div>';
  }
 }
-
 function playTestSound(){
- if(!audioCtx || audioCtx.state!=="running") return;
- const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
- osc.type='sine'; osc.frequency.value=660;
+ if(!audioCtx||audioCtx.state!=="running")return;
+ const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+ osc.type='sine';osc.frequency.value=660;
  gain.gain.setValueAtTime(.0001,audioCtx.currentTime);
  gain.gain.exponentialRampToValueAtTime(.08,audioCtx.currentTime+.02);
  gain.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.18);
- osc.connect(gain).connect(audioCtx.destination);
- osc.start(); osc.stop(audioCtx.currentTime+.2);
+ osc.connect(gain).connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+.2);
 }
 
-function selectCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number first");if(!localStorage.getItem(key(id)))saveData(id,getData(id));currentCustomer=id;render();}
+function selectCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number first");if(!localStorage.getItem(key(id)))saveData(id,getData(id));currentCustomer=id;renderCustomer();}
 function clearCustomer(){currentCustomer=null;document.getElementById('customer').value="";document.getElementById('custStatus').innerHTML="No customer selected";document.getElementById('loyalty').textContent="0";document.getElementById('rewardStatus').textContent="No free bag available";document.getElementById('history').textContent="Select a customer";}
-function render(){if(!currentCustomer)return;const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div class="small">${d.paid} paid bags total</div>`;document.getElementById('loyalty').textContent=progress;document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";const entries=Object.entries(d.products);document.getElementById('history').innerHTML=entries.length?entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";renderPurchase();}
+function renderCustomer(){
+ if(!currentCustomer)return;
+ const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;
+ document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div class="small">${d.paid} paid bags total</div>`;
+ document.getElementById('loyalty').textContent=progress;
+ document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";
+ const entries=Object.entries(d.products);
+ document.getElementById('history').innerHTML=entries.length?entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";
+ renderPurchase();
+}
 
-function productFromText(t){t=(t||"").trim();let m=t.match(/PRODUCT=([^|]+)/i)||t.match(/P=([^|]+)/i);if(m)return m[1].trim().toUpperCase();const map={"/3-brazil-medium-1/":"BRAZIL","/14-peru/":"PERU","/21-mexico/":"MEXICO","/6-sumatra/":"SUMATRA","/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY","/12-robusta-coffee/":"ROBUSTA","/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO","/10-decaffeinated-coffee/":"DECAFFEINATED"};for(const [part,name] of Object.entries(map)){if(t.includes(part))return name;}return null;}
+function productFromText(t){
+ t=(t||"").trim();
+ let m=t.match(/PRODUCT=([^|]+)/i)||t.match(/P=([^|]+)/i);
+ if(m)return m[1].trim().toUpperCase();
+ const map={
+  "/3-brazil-medium-1/":"BRAZIL",
+  "/14-peru/":"PERU",
+  "/21-mexico/":"MEXICO",
+  "/6-sumatra/":"SUMATRA",
+  "/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY",
+  "/12-robusta-coffee/":"ROBUSTA",
+  "/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO",
+  "/10-decaffeinated-coffee/":"DECAFFEINATED"
+ };
+ for(const [part,name] of Object.entries(map)){if(t.includes(part))return name;}
+ return null;
+}
 
-async function startScanner(){if(!currentCustomer)return alert("First enter and open a customer number.");if(controls)return;try{const reader=new ZXingBrowser.BrowserQRCodeReader();controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById('video'),(result)=>{if(!result)return;const text=result.getText(),now=Date.now();if(text===lastText&&now-lastTime<2000)return;lastText=text;lastTime=now;const product=productFromText(text);if(!product){document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}purchase.push(product);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;renderPurchase();stopScanner();});document.getElementById('scanStatus').textContent="Scanner active — point camera at ONE coffee QR.";}catch(e){document.getElementById('scanStatus').innerHTML='<div class="warn">Camera could not start. Use Safari and allow Camera access.</div>';controls=null;}}
-function stopScanner(){if(controls){try{controls.stop();}catch(e){}controls=null;}const v=document.getElementById('video');if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}}
-function renderPurchase(){const el=document.getElementById('purchaseList');if(!purchase.length){el.innerHTML="No bags scanned";return;}const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;}
+async function startScannerOn(videoId, callback, statusId){
+ if(controls)return;
+ try{
+   const reader=new ZXingBrowser.BrowserQRCodeReader();
+   controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById(videoId),(result)=>{
+     if(!result)return;
+     const text=result.getText(),now=Date.now();
+     if(text===lastText&&now-lastTime<1500)return;
+     lastText=text;lastTime=now;
+     callback(text);
+   });
+   document.getElementById(statusId).textContent="Scanner active — point camera at the QR.";
+ }catch(e){
+   document.getElementById(statusId).innerHTML='<div class="warn">Camera could not start. Use Safari and allow Camera access.</div>';
+   controls=null;
+ }
+}
+function stopScanner(){
+ if(controls){try{controls.stop();}catch(e){}controls=null;}
+ ["videoSales","videoInventory"].forEach(id=>{
+   const v=document.getElementById(id);
+   if(v&&v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
+ });
+}
 
+function startSalesScanner(){
+ if(!currentCustomer)return alert("First enter and open a customer number.");
+ startScannerOn("videoSales",(text)=>{
+   const product=productFromText(text);
+   if(!product){document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}
+   purchase.push(product);
+   document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;
+   renderPurchase();stopScanner();
+ },"scanStatus");
+}
+function renderPurchase(){
+ const el=document.getElementById('purchaseList');
+ if(!purchase.length){el.innerHTML="No bags scanned";return;}
+ const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
+ el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;
+}
 function finishSale(){
  if(!currentCustomer)return alert("Open a customer first");
  if(!purchase.length)return alert("Scan at least one coffee bag");
- const d=getData(currentCustomer);
- const rewardsBefore=Math.floor(d.paid/10);
+ const d=getData(currentCustomer),rewardsBefore=Math.floor(d.paid/10);
  d.paid+=purchase.length;
  purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);
  d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});
  saveData(currentCustomer,d);
  const newRewards=Math.floor(d.paid/10)-rewardsBefore;
- purchase=[];
- document.getElementById('scanStatus').textContent="Sale saved.";
- render();
- if(newRewards>0) celebrateReward(currentCustomer,newRewards);
+ purchase=[];document.getElementById('scanStatus').textContent="Sale saved.";renderCustomer();
+ if(newRewards>0)celebrateReward(currentCustomer,newRewards);
 }
-
-function redeemReward(){if(!currentCustomer)return alert("Open a customer first");if(purchase.length!==1)return alert("For a free bag, scan exactly one coffee bag.");const d=getData(currentCustomer),available=Math.floor(d.paid/10)-d.freeUsed;if(available<1)return alert("This customer has no free bag available.");d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);purchase=[];document.getElementById('scanStatus').textContent="Free bag recorded.";render();}
+function redeemReward(){
+ if(!currentCustomer)return alert("Open a customer first");
+ if(purchase.length!==1)return alert("For a free bag, scan exactly one coffee bag.");
+ const d=getData(currentCustomer),available=Math.floor(d.paid/10)-d.freeUsed;
+ if(available<1)return alert("This customer has no free bag available.");
+ d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);
+ purchase=[];document.getElementById('scanStatus').textContent="Free bag recorded.";renderCustomer();
+}
 function clearPurchase(){purchase=[];renderPurchase();}
+
+function setInventoryMode(mode){
+ inventoryMode=mode;
+ document.getElementById('morningBtn').classList.toggle('active',mode==='morning');
+ document.getElementById('eveningBtn').classList.toggle('active',mode==='evening');
+ document.getElementById('inventoryModeText').textContent=mode==='morning'?"Scanning for morning stock.":"Scanning for evening remaining stock.";
+ renderInventoryCurrent();
+}
+function startInventoryScanner(){
+ startScannerOn("videoInventory",(text)=>{
+   const product=productFromText(text);
+   if(!product){document.getElementById('inventoryScanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}
+   inventoryProduct=product;inventoryQty=1;
+   document.getElementById('inventoryProduct').textContent=product;
+   document.getElementById('inventoryQty').textContent=inventoryQty;
+   document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${product} selected — choose quantity</div>`;
+   stopScanner();
+ },"inventoryScanStatus");
+}
+function changeQty(delta){inventoryQty=Math.max(1,inventoryQty+delta);document.getElementById('inventoryQty').textContent=inventoryQty;}
+function resetInventorySelection(){inventoryProduct=null;inventoryQty=1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent="1";}
+function addInventoryQuantity(){
+ if(!inventoryProduct)return alert("Scan a coffee QR first");
+ const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
+ target[inventoryProduct]=(target[inventoryProduct]||0)+inventoryQty;
+ renderInventoryCurrent();
+ document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">${inventoryQty} × ${inventoryProduct} added to ${inventoryMode} stock.</div>`;
+ resetInventorySelection();
+}
+function renderInventoryCurrent(){
+ const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
+ const entries=Object.entries(target);
+ const el=document.getElementById('inventoryCurrent');
+ if(!entries.length){el.innerHTML=`No ${inventoryMode} inventory entered yet.`;return;}
+ const total=entries.reduce((s,[,n])=>s+n,0);
+ el.innerHTML=entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item"><b>Total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
+}
+function marketKey(){
+ const date=document.getElementById('marketDate').value||new Date().toISOString().slice(0,10);
+ const loc=document.getElementById('marketLocation').value;
+ return `cafeat8_market_${date}_${loc}`;
+}
+function saveMorning(){
+ if(Object.keys(inventoryMorning).length===0)return alert("Enter morning stock first");
+ const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
+ data.date=document.getElementById('marketDate').value;
+ data.location=document.getElementById('marketLocation').value;
+ data.morning=inventoryMorning;
+ data.evening=data.evening||{};
+ localStorage.setItem(marketKey(),JSON.stringify(data));
+ document.getElementById('marketResult').innerHTML='<div class="ok">Morning stock saved.</div>';
+}
+function finishMarket(){
+ if(Object.keys(inventoryMorning).length===0)return alert("Morning stock is empty.");
+ if(Object.keys(inventoryEvening).length===0)return alert("Enter evening stock first.");
+ const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+ const sold={};
+ all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
+ const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
+ const data={date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,morning:inventoryMorning,evening:inventoryEvening,sold};
+ localStorage.setItem(marketKey(),JSON.stringify(data));
+ document.getElementById('marketResult').innerHTML=
+ `<div class="summary-grid">
+ <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
+ ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
+ </div>
+ <div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
+}
+function clearInventoryDay(){
+ if(!confirm("Clear today's morning and evening inventory?"))return;
+ inventoryMorning={};inventoryEvening={};resetInventorySelection();renderInventoryCurrent();
+ document.getElementById('marketResult').textContent="Morning and evening counts are needed.";
+}
 
 function celebrateReward(customerId,count){
  document.getElementById('celebrationCustomer').textContent=`Customer ${customerId} earned ${count} FREE BAG${count>1?'S':''}!`;
- document.getElementById('celebrationOverlay').classList.add('show');
- createFireworks();
- playRewardSound();
- setTimeout(hideCelebration,3400);
+ document.getElementById('celebrationOverlay').classList.add('show');createFireworks();playRewardSound();setTimeout(hideCelebration,3400);
 }
-function hideCelebration(){const overlay=document.getElementById('celebrationOverlay');overlay.classList.remove('show');overlay.querySelectorAll('.particle,.spark').forEach(p=>p.remove());}
-
+function hideCelebration(){const o=document.getElementById('celebrationOverlay');o.classList.remove('show');o.querySelectorAll('.particle').forEach(p=>p.remove());}
 function createFireworks(){
- const overlay=document.getElementById('celebrationOverlay');
- const colors=['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];
- const bursts=[{x:'18%',y:'24%'},{x:'82%',y:'24%'},{x:'22%',y:'74%'},{x:'78%',y:'74%'},{x:'50%',y:'18%'}];
- bursts.forEach((b,idx)=>{
-   for(let i=0;i<18;i++){
-     const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];
-     const angle=Math.PI*2*i/18,dist=70+Math.random()*85;
-     p.style.setProperty('--dx',`${Math.cos(angle)*dist}px`);p.style.setProperty('--dy',`${Math.sin(angle)*dist}px`);p.style.animationDelay=`${idx*.08}s`;overlay.appendChild(p);
-   }
+ const o=document.getElementById('celebrationOverlay'),colors=['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];
+ [{x:'18%',y:'24%'},{x:'82%',y:'24%'},{x:'22%',y:'74%'},{x:'78%',y:'74%'},{x:'50%',y:'18%'}].forEach((b,idx)=>{
+   for(let i=0;i<18;i++){const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];const a=Math.PI*2*i/18,d=70+Math.random()*85;p.style.setProperty('--dx',`${Math.cos(a)*d}px`);p.style.setProperty('--dy',`${Math.sin(a)*d}px`);o.appendChild(p);}
  });
+}
+function playRewardSound(){
+ if(!audioCtx||!soundEnabled)return;
+ if(audioCtx.state==="suspended")audioCtx.resume();
+ const start=audioCtx.currentTime+.02,notes=[523.25,659.25,783.99,1046.5,1318.5];
+ notes.forEach((f,i)=>{const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),t=start+i*.13;osc.type=i<3?'triangle':'sine';osc.frequency.value=f;gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.16,t+.025);gain.gain.exponentialRampToValueAtTime(.0001,t+.28);osc.connect(gain).connect(audioCtx.destination);osc.start(t);osc.stop(t+.30);});
 }
 
-function playRewardSound(){
- if(!audioCtx || !soundEnabled) return;
- if(audioCtx.state==="suspended") audioCtx.resume();
- const start=audioCtx.currentTime+.02;
- const notes=[523.25,659.25,783.99,1046.5,1318.5];
- notes.forEach((freq,i)=>{
-   const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
-   osc.type=i<3?'triangle':'sine';osc.frequency.value=freq;
-   const t=start+i*.13;
-   gain.gain.setValueAtTime(.0001,t);
-   gain.gain.exponentialRampToValueAtTime(.16,t+.025);
-   gain.gain.exponentialRampToValueAtTime(.0001,t+.28);
-   osc.connect(gain).connect(audioCtx.destination);
-   osc.start(t);osc.stop(t+.30);
- });
-}
+(function init(){
+ const today=new Date().toISOString().slice(0,10);
+ document.getElementById('marketDate').value=today;
+})();
 </script>
 </body>
 </html>
