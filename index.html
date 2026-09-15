@@ -3,7 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cafeat8 Market v11</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cafeat8">
+<meta name="theme-color" content="#205b36">
+<title>Cafeat8 Market v12</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
@@ -50,7 +54,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v11</h1>
+<h1>☕ Cafeat8 Market v12</h1>
 
 <div class="card">
 <div class="tabs">
@@ -186,8 +190,22 @@ let inventoryMode="morning", inventoryProduct=null, inventoryQty=1;
 let inventoryMorning={}, inventoryEvening={};
 
 const key=id=>"cafeat8_customer_"+id;
-const getData=id=>JSON.parse(localStorage.getItem(key(id))||'{"paid":0,"freeUsed":0,"products":{},"history":[]}');
-const saveData=(id,d)=>localStorage.setItem(key(id),JSON.stringify(d));
+const DATA_VERSION=1;
+function getData(id){
+  let d;
+  try{ d=JSON.parse(localStorage.getItem(key(id))||'null'); }catch(e){ d=null; }
+  if(!d||typeof d!=="object") d={paid:0,freeUsed:0,products:{},history:[]};
+  if(typeof d.paid!=="number") d.paid=0;
+  if(typeof d.freeUsed!=="number") d.freeUsed=0;
+  if(!d.products||typeof d.products!=="object") d.products={};
+  if(!Array.isArray(d.history)) d.history=[];
+  d.v=DATA_VERSION;
+  return d;
+}
+function saveData(id,d){
+  try{ localStorage.setItem(key(id),JSON.stringify(d)); }
+  catch(e){ alert("Could not save customer data."); }
+}
 
 function showPanel(name){
  document.getElementById('salesPanel').classList.toggle('active',name==='sales');
@@ -219,8 +237,24 @@ function playTestSound(){
  osc.connect(gain).connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+.2);
 }
 
-function selectCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number first");if(!localStorage.getItem(key(id)))saveData(id,getData(id));currentCustomer=id;renderCustomer();}
-function clearCustomer(){currentCustomer=null;document.getElementById('customer').value="";document.getElementById('custStatus').innerHTML="No customer selected";document.getElementById('loyalty').textContent="0";document.getElementById('rewardStatus').textContent="No free bag available";document.getElementById('history').textContent="Select a customer";}
+function selectCustomer(){
+ const id=document.getElementById('customer').value.trim();
+ if(!id)return alert("Enter customer number first");
+ if(currentCustomer && currentCustomer!==id) purchase=[];
+ currentCustomer=id;
+ if(!localStorage.getItem(key(id)))saveData(id,getData(id));
+ renderCustomer();
+}
+function clearCustomer(){
+ currentCustomer=null;
+ purchase=[];
+ document.getElementById('customer').value="";
+ document.getElementById('custStatus').innerHTML="No customer selected";
+ document.getElementById('loyalty').textContent="0";
+ document.getElementById('rewardStatus').textContent="No free bag available";
+ document.getElementById('history').textContent="Select a customer";
+ renderPurchase();
+}
 function renderCustomer(){
  if(!currentCustomer)return;
  const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;
@@ -232,9 +266,20 @@ function renderCustomer(){
  renderPurchase();
 }
 
-function productFromText(t){
- t=(t||"").trim();
- let m=t.match(/PRODUCT=([^|]+)/i)||t.match(/P=([^|]+)/i);
+function canonicalizeQR(text){
+ let raw=(text||"").trim();
+ try{
+   if(/^https?:\/\//i.test(raw)){
+     const u=new URL(raw);
+     raw=u.pathname;
+   }
+ }catch(e){}
+ raw=raw.split('?')[0].split('#')[0].toLowerCase();
+ return raw.endsWith('/')?raw:raw+'/';
+}
+function productFromText(text){
+ const raw=(text||"").trim();
+ let m=raw.match(/PRODUCT=([^|&]+)/i)||raw.match(/P=([^|&]+)/i);
  if(m)return m[1].trim().toUpperCase();
  const map={
   "/3-brazil-medium-1/":"BRAZIL",
@@ -246,12 +291,15 @@ function productFromText(t){
   "/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO",
   "/10-decaffeinated-coffee/":"DECAFFEINATED"
  };
- for(const [part,name] of Object.entries(map)){if(t.includes(part))return name;}
+ const canon=canonicalizeQR(raw);
+ for(const [part,name] of Object.entries(map)) if(canon.includes(part)) return name;
+ for(const [part,name] of Object.entries(map)) if(raw.toLowerCase().includes(part)) return name;
  return null;
 }
 
 async function startScannerOn(videoId, callback, statusId){
- if(controls)return;
+ stopScanner();
+ lastText=""; lastTime=0;
  try{
    const reader=new ZXingBrowser.BrowserQRCodeReader();
    controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById(videoId),(result)=>{
@@ -377,23 +425,21 @@ function renderInventoryCurrent(){
 function updateLiveResult(){
  const el=document.getElementById('marketResult');
  if(!el) return;
-
- // Never show an old sold result while counts are still changing.
  try{
    const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
    if(saved.sold){
-     delete saved.sold;
-     localStorage.setItem(marketKey(),JSON.stringify(saved));
+     const sameMorning=JSON.stringify(saved.morning||{})===JSON.stringify(inventoryMorning||{});
+     const sameEvening=JSON.stringify(saved.evening||{})===JSON.stringify(inventoryEvening||{});
+     if(!(sameMorning&&sameEvening)){
+       delete saved.sold;
+       localStorage.setItem(marketKey(),JSON.stringify(saved));
+     }
    }
  }catch(e){}
 
  const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
  const eveningTotal=Object.values(inventoryEvening).reduce((a,b)=>a+(Number(b)||0),0);
-
- if(morningTotal===0){
-   el.innerHTML='<div class="muted">Enter morning stock first.</div>';
-   return;
- }
+ if(morningTotal===0){el.innerHTML='<div class="muted">Enter morning stock first.</div>';return;}
  if(inventoryMode==='morning'){
    el.innerHTML=`<div class="ok">Morning stock entered: <b>${morningTotal} bags</b> (${(morningTotal*.5).toFixed(1)} kg). When ready, press <b>Save Morning & Start Evening</b>.</div>`;
    return;
@@ -402,18 +448,14 @@ function updateLiveResult(){
    el.innerHTML=`<div class="ok">Morning saved: <b>${morningTotal} bags</b>. Now enter the bags remaining in the evening.</div>`;
    return;
  }
-
  const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
  const sold={};
  all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
  const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
-
- el.innerHTML=
- `<div class="summary-grid">
+ el.innerHTML=`<div class="summary-grid">
  <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
  ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
- </div>
- <div class="item"><b>Current difference: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>
+ </div><div class="item"><b>Current difference: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>
  <div class="small">Press Finish Market to save the final result.</div>`;
 }
 
@@ -424,131 +466,103 @@ function marketKey(){
 }
 function saveMorning(silent=false){
  try{
-   if(inventoryMode==='morning' && inventoryProduct){
-     const p=inventoryProduct, q=inventoryQty;
-     inventoryMorning[p]=(inventoryMorning[p]||0)+q;
-     resetInventorySelection();
-     renderInventoryCurrent();
-   }
-
-   const totalMorning=Object.values(inventoryMorning).reduce((a,b)=>a+b,0);
+   const totalMorning=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
    if(totalMorning===0){
-     if(!silent) alert("Morning stock is still empty. Scan a coffee, choose quantity, and add it.");
+     if(!silent)alert("Morning stock is still empty. Scan a coffee, choose quantity, and press Add to Morning Stock.");
      return false;
    }
-
    const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
    data.date=document.getElementById('marketDate').value;
    data.location=document.getElementById('marketLocation').value;
    data.morning={...inventoryMorning};
    data.evening=data.evening||{};
+   data.mode=data.mode||'morning';
    localStorage.setItem(marketKey(),JSON.stringify(data));
-   if(!silent){
-     document.getElementById('marketResult').innerHTML=
-       `<div class="ok">✓ Morning stock saved: ${totalMorning} bags.</div>`;
-   }
+   if(!silent)document.getElementById('marketResult').innerHTML=`<div class="ok">✓ Morning stock saved: ${totalMorning} bags.</div>`;
    return true;
  }catch(err){
-   alert("Save Morning error: "+err.message);
+   if(!silent)alert("Save Morning error: "+err.message);
    return false;
  }
 }
 
 function saveEveningDraft(){
- const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
- data.date=document.getElementById('marketDate').value;
- data.location=document.getElementById('marketLocation').value;
- data.morning=inventoryMorning;
- data.evening=inventoryEvening;
- if(data.sold) delete data.sold;
- localStorage.setItem(marketKey(),JSON.stringify(data));
+ try{
+   const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
+   data.date=document.getElementById('marketDate').value;
+   data.location=document.getElementById('marketLocation').value;
+   data.morning={...inventoryMorning};
+   data.evening={...inventoryEvening};
+   data.mode='evening';
+   if(data.sold)delete data.sold;
+   localStorage.setItem(marketKey(),JSON.stringify(data));
+ }catch(e){}
  updateLiveResult();
 }
 
 function switchToEvening(){
  try{
+   // If a product is selected but not yet added, commit it exactly once.
+   if(inventoryMode==='morning' && inventoryProduct) commitPendingInventory();
 
-   // First save/commit whatever is currently pending in morning mode.
-   if(inventoryMode==='morning' && inventoryProduct){
-     const p=inventoryProduct, q=inventoryQty;
-     inventoryMorning[p]=(inventoryMorning[p]||0)+q;
-     resetInventorySelection();
-     renderInventoryCurrent();
-   }
-
-   const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+b,0);
-
-   if(morningTotal===0){
-     // Try to restore an already-saved morning count.
+   if(Object.keys(inventoryMorning).length===0){
      const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
-     if(saved.morning) inventoryMorning={...saved.morning};
+     if(saved.morning)inventoryMorning={...saved.morning};
    }
-
-   const restoredTotal=Object.values(inventoryMorning).reduce((a,b)=>a+b,0);
-   if(restoredTotal===0){
-     alert("No morning stock found. Add at least one coffee quantity first.");
+   const totalMorning=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
+   if(totalMorning===0){
+     alert("No morning stock found. Scan a coffee, choose quantity, and press Add to Morning Stock first.");
      return;
    }
+   if(!saveMorning(true))return;
 
-   // Save morning explicitly.
+   inventoryMode='evening';
    const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
-   data.date=document.getElementById('marketDate').value;
-   data.location=document.getElementById('marketLocation').value;
+   data.mode='evening';
    data.morning={...inventoryMorning};
    data.evening=data.evening||{};
    localStorage.setItem(marketKey(),JSON.stringify(data));
 
-   inventoryMode='evening';
-   document.getElementById('morningBtn').classList.remove('active');
-   document.getElementById('eveningBtn').classList.add('active');
-   document.getElementById('inventoryModeText').textContent=
-     "EVENING MODE ACTIVE — enter the bags remaining at the end of the market.";
-   const banner=document.getElementById('modeBanner');
-   if(banner){
-     banner.textContent="🌙 EVENING MODE";
-     banner.style.background="#e8f6ea";
-   }
-   const btn=document.getElementById('addQtyBtn');
-   if(btn) btn.textContent="Add to Evening Stock";
-
-   document.getElementById('inventoryScanStatus').innerHTML=
-     `<div class="ok">🌙 EVENING MODE STARTED. Morning saved: ${restoredTotal} bags.</div>`;
-   renderInventoryCurrent();
+   setInventoryMode('evening');
+   document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">🌙 EVENING MODE STARTED. Morning saved: ${totalMorning} bags.</div>`;
  }catch(err){
    alert("Start Evening error: "+err.message);
  }
 }
+
 function finishMarket(){
- if(inventoryMode==='evening' && inventoryProduct){
-   const addedProduct=inventoryProduct, addedQty=inventoryQty;
-   inventoryEvening[addedProduct]=(inventoryEvening[addedProduct]||0)+addedQty;
-   resetInventorySelection();
-   saveEveningDraft();
-   renderInventoryCurrent();
- }
- if(Object.keys(inventoryMorning).length===0){
-   const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
-   if(saved.morning) inventoryMorning=saved.morning;
- }
- if(Object.keys(inventoryMorning).length===0)return alert("Morning stock is empty. Enter and save morning stock first.");
- if(Object.keys(inventoryEvening).length===0)return alert("Enter evening stock first.");
- const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
- const sold={};
- all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
- const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
- const data={date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,morning:inventoryMorning,evening:inventoryEvening,sold};
- localStorage.setItem(marketKey(),JSON.stringify(data));
- document.getElementById('marketResult').innerHTML=
- `<div class="summary-grid">
- <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
- ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
- </div>
- <div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
+ try{
+   // Commit a pending evening product exactly once.
+   if(inventoryMode==='evening' && inventoryProduct) commitPendingInventory();
+
+   if(Object.keys(inventoryMorning).length===0){
+     const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
+     if(saved.morning)inventoryMorning={...saved.morning};
+   }
+   if(Object.keys(inventoryMorning).length===0)return alert("Morning stock is empty.");
+   if(Object.keys(inventoryEvening).length===0)return alert("Enter evening stock first.");
+
+   const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+   const sold={};
+   all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
+   const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
+   const data={
+     date:document.getElementById('marketDate').value,
+     location:document.getElementById('marketLocation').value,
+     morning:{...inventoryMorning},evening:{...inventoryEvening},sold,mode:'finished'
+   };
+   localStorage.setItem(marketKey(),JSON.stringify(data));
+   document.getElementById('marketResult').innerHTML=`<div class="summary-grid">
+   <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
+   ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
+   </div><div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
+ }catch(err){ alert("Finish Market error: "+err.message); }
 }
+
 function clearInventoryDay(){
  if(!confirm("Clear today's morning and evening inventory?"))return;
- inventoryMorning={};inventoryEvening={};
  localStorage.removeItem(marketKey());
+ inventoryMorning={};inventoryEvening={};inventoryProduct=null;inventoryQty=1;
  resetInventorySelection();
  setInventoryMode('morning');
  renderInventoryCurrent();
@@ -566,24 +580,36 @@ function createFireworks(){
    for(let i=0;i<18;i++){const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];const a=Math.PI*2*i/18,d=70+Math.random()*85;p.style.setProperty('--dx',`${Math.cos(a)*d}px`);p.style.setProperty('--dy',`${Math.sin(a)*d}px`);o.appendChild(p);}
  });
 }
-function playRewardSound(){
+async function playRewardSound(){
  if(!audioCtx||!soundEnabled)return;
- if(audioCtx.state==="suspended")audioCtx.resume();
- const start=audioCtx.currentTime+.02,notes=[523.25,659.25,783.99,1046.5,1318.5];
- notes.forEach((f,i)=>{const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),t=start+i*.13;osc.type=i<3?'triangle':'sine';osc.frequency.value=f;gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.16,t+.025);gain.gain.exponentialRampToValueAtTime(.0001,t+.28);osc.connect(gain).connect(audioCtx.destination);osc.start(t);osc.stop(t+.30);});
+ try{
+   if(audioCtx.state==="suspended")await audioCtx.resume();
+   const start=audioCtx.currentTime+.02,notes=[523.25,659.25,783.99,1046.5,1318.5];
+   notes.forEach((f,i)=>{const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),t=start+i*.13;osc.type=i<3?'triangle':'sine';osc.frequency.value=f;gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.16,t+.025);gain.gain.exponentialRampToValueAtTime(.0001,t+.28);osc.connect(gain).connect(audioCtx.destination);osc.start(t);osc.stop(t+.30);});
+ }catch(e){}
 }
 
 function loadMarketDraft(){
  try{
    const raw=localStorage.getItem(marketKey());
-   const saved=raw ? JSON.parse(raw) : {};
+   const saved=raw?JSON.parse(raw):{};
    inventoryMorning=saved.morning||{};
    inventoryEvening=saved.evening||{};
-   renderInventoryCurrent();
+   inventoryMode=(saved.mode==='evening'||saved.mode==='finished')?'evening':'morning';
+   setInventoryMode(inventoryMode);
+   if(saved.sold && saved.mode==='finished'){
+     const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+     const totalSold=Object.values(saved.sold).reduce((a,b)=>a+(Number(b)||0),0);
+     document.getElementById('marketResult').innerHTML=`<div class="summary-grid">
+       <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
+       ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${saved.sold[p]||0}</b></div>`).join('')}
+       </div><div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
+   }
  }catch(err){
+   inventoryMorning={};inventoryEvening={};inventoryMode='morning';
+   setInventoryMode('morning');
  }
 }
-
 
 (function init(){
  const today=new Date().toISOString().slice(0,10);
