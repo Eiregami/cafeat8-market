@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cafeat8 Market v10 DEBUG</title>
+<title>Cafeat8 Market v11</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
@@ -50,7 +50,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v10 DEBUG</h1>
+<h1>☕ Cafeat8 Market v11</h1>
 
 <div class="card">
 <div class="tabs">
@@ -125,7 +125,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 <button id="morningBtn" class="mode active" onclick="setInventoryMode('morning')">🌅 Enter Morning Stock</button>
 <button id="eveningBtn" class="mode" onclick="switchToEvening()">🌙 Start Evening Count</button>
 </div>
-<div id="inventoryModeText" class="muted">Scanning for morning stock.</div>
+<div id="inventoryModeText" class="muted">Scanning for morning stock.</div><div id="modeBanner" style="margin-top:12px;padding:14px;border-radius:14px;background:#fff3cd;font-size:26px;font-weight:900;text-align:center">🌅 MORNING MODE</div>
 </div>
 
 <div class="card">
@@ -166,15 +166,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 <div id="marketResult" class="muted">Morning and evening counts are needed.</div>
 </div>
 
-<div class="card" style="border:2px solid #c62828">
-<h2>🛠 Debug information</h2>
-<div id="debugStatus" style="font-family:monospace;white-space:pre-wrap;font-size:14px">Loading debug information…</div>
-<div class="row">
-<button class="secondary" onclick="refreshDebug()">Refresh debug</button>
-<button class="secondary" onclick="copyDebug()">Copy debug</button>
 </div>
-</div>
-
 </div>
 </div>
 
@@ -329,9 +321,13 @@ function setInventoryMode(mode){
    mode==='morning' ? "Scanning for morning stock." : "Scanning for evening remaining stock.";
  const btn=document.getElementById('addQtyBtn');
  if(btn) btn.textContent=mode==='morning' ? "Add to Morning Stock" : "Add to Evening Stock";
- setLastAction("Mode changed to "+mode.toUpperCase());
+ const banner=document.getElementById('modeBanner');
+ if(banner){
+   banner.textContent=mode==='morning' ? "🌅 MORNING MODE" : "🌙 EVENING MODE";
+   banner.style.background=mode==='morning' ? "#fff3cd" : "#e8f6ea";
+ }
  renderInventoryCurrent();
- refreshDebug();
+ updateLiveResult();
 }
 function startInventoryScanner(){
  startScannerOn("videoInventory",(text)=>{
@@ -359,18 +355,15 @@ function commitPendingInventory(){
  }
  document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">${addedQty} × ${addedProduct} added to ${inventoryMode} stock.</div>`;
  renderInventoryCurrent();
+ updateLiveResult();
  return true;
 }
 function addInventoryQuantity(){
  if(!inventoryProduct){
-   setLastAction("Add quantity pressed with no product selected");
-   refreshDebug();
    return alert("Scan a coffee QR first");
  }
  const p=inventoryProduct, q=inventoryQty, m=inventoryMode;
  commitPendingInventory();
- setLastAction(`Added ${q} × ${p} to ${m.toUpperCase()} stock`);
- refreshDebug();
 }
 function renderInventoryCurrent(){
  const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
@@ -380,6 +373,50 @@ function renderInventoryCurrent(){
  const total=entries.reduce((s,[,n])=>s+n,0);
  el.innerHTML=entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item"><b>Total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
 }
+
+function updateLiveResult(){
+ const el=document.getElementById('marketResult');
+ if(!el) return;
+
+ // Never show an old sold result while counts are still changing.
+ try{
+   const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
+   if(saved.sold){
+     delete saved.sold;
+     localStorage.setItem(marketKey(),JSON.stringify(saved));
+   }
+ }catch(e){}
+
+ const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
+ const eveningTotal=Object.values(inventoryEvening).reduce((a,b)=>a+(Number(b)||0),0);
+
+ if(morningTotal===0){
+   el.innerHTML='<div class="muted">Enter morning stock first.</div>';
+   return;
+ }
+ if(inventoryMode==='morning'){
+   el.innerHTML=`<div class="ok">Morning stock entered: <b>${morningTotal} bags</b> (${(morningTotal*.5).toFixed(1)} kg). When ready, press <b>Save Morning & Start Evening</b>.</div>`;
+   return;
+ }
+ if(eveningTotal===0){
+   el.innerHTML=`<div class="ok">Morning saved: <b>${morningTotal} bags</b>. Now enter the bags remaining in the evening.</div>`;
+   return;
+ }
+
+ const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+ const sold={};
+ all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
+ const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
+
+ el.innerHTML=
+ `<div class="summary-grid">
+ <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
+ ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
+ </div>
+ <div class="item"><b>Current difference: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>
+ <div class="small">Press Finish Market to save the final result.</div>`;
+}
+
 function marketKey(){
  const date=document.getElementById('marketDate').value||new Date().toISOString().slice(0,10);
  const loc=document.getElementById('marketLocation').value;
@@ -392,13 +429,10 @@ function saveMorning(silent=false){
      inventoryMorning[p]=(inventoryMorning[p]||0)+q;
      resetInventorySelection();
      renderInventoryCurrent();
-     setLastAction(`Auto-added pending morning item: ${q} × ${p}`);
    }
 
    const totalMorning=Object.values(inventoryMorning).reduce((a,b)=>a+b,0);
    if(totalMorning===0){
-     setLastAction("ERROR: Tried to save morning stock but total is 0");
-     refreshDebug();
      if(!silent) alert("Morning stock is still empty. Scan a coffee, choose quantity, and add it.");
      return false;
    }
@@ -409,17 +443,12 @@ function saveMorning(silent=false){
    data.morning={...inventoryMorning};
    data.evening=data.evening||{};
    localStorage.setItem(marketKey(),JSON.stringify(data));
-
-   setLastAction(`Morning stock saved: ${totalMorning} bags`);
    if(!silent){
      document.getElementById('marketResult').innerHTML=
        `<div class="ok">✓ Morning stock saved: ${totalMorning} bags.</div>`;
    }
-   refreshDebug();
    return true;
  }catch(err){
-   setLastAction("SAVE MORNING ERROR: "+err.message);
-   refreshDebug();
    alert("Save Morning error: "+err.message);
    return false;
  }
@@ -431,13 +460,13 @@ function saveEveningDraft(){
  data.location=document.getElementById('marketLocation').value;
  data.morning=inventoryMorning;
  data.evening=inventoryEvening;
+ if(data.sold) delete data.sold;
  localStorage.setItem(marketKey(),JSON.stringify(data));
+ updateLiveResult();
 }
 
 function switchToEvening(){
  try{
-   setLastAction("Start Evening button pressed");
-   refreshDebug();
 
    // First save/commit whatever is currently pending in morning mode.
    if(inventoryMode==='morning' && inventoryProduct){
@@ -445,7 +474,6 @@ function switchToEvening(){
      inventoryMorning[p]=(inventoryMorning[p]||0)+q;
      resetInventorySelection();
      renderInventoryCurrent();
-     setLastAction(`Pending morning item committed: ${q} × ${p}`);
    }
 
    const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+b,0);
@@ -458,8 +486,6 @@ function switchToEvening(){
 
    const restoredTotal=Object.values(inventoryMorning).reduce((a,b)=>a+b,0);
    if(restoredTotal===0){
-     setLastAction("BLOCKED: no morning stock found");
-     refreshDebug();
      alert("No morning stock found. Add at least one coffee quantity first.");
      return;
    }
@@ -477,18 +503,18 @@ function switchToEvening(){
    document.getElementById('eveningBtn').classList.add('active');
    document.getElementById('inventoryModeText').textContent=
      "EVENING MODE ACTIVE — enter the bags remaining at the end of the market.";
+   const banner=document.getElementById('modeBanner');
+   if(banner){
+     banner.textContent="🌙 EVENING MODE";
+     banner.style.background="#e8f6ea";
+   }
    const btn=document.getElementById('addQtyBtn');
    if(btn) btn.textContent="Add to Evening Stock";
 
    document.getElementById('inventoryScanStatus').innerHTML=
      `<div class="ok">🌙 EVENING MODE STARTED. Morning saved: ${restoredTotal} bags.</div>`;
-
-   setLastAction(`SUCCESS: switched to EVENING with ${restoredTotal} morning bags`);
    renderInventoryCurrent();
-   refreshDebug();
  }catch(err){
-   setLastAction("SWITCH TO EVENING ERROR: "+err.message);
-   refreshDebug();
    alert("Start Evening error: "+err.message);
  }
 }
@@ -521,7 +547,11 @@ function finishMarket(){
 }
 function clearInventoryDay(){
  if(!confirm("Clear today's morning and evening inventory?"))return;
- inventoryMorning={};inventoryEvening={};resetInventorySelection();renderInventoryCurrent();
+ inventoryMorning={};inventoryEvening={};
+ localStorage.removeItem(marketKey());
+ resetInventorySelection();
+ setInventoryMode('morning');
+ renderInventoryCurrent();
  document.getElementById('marketResult').textContent="Morning and evening counts are needed.";
 }
 
@@ -549,70 +579,10 @@ function loadMarketDraft(){
    const saved=raw ? JSON.parse(raw) : {};
    inventoryMorning=saved.morning||{};
    inventoryEvening=saved.evening||{};
-   setLastAction(raw ? "Loaded saved market draft" : "No saved market draft found");
    renderInventoryCurrent();
-   refreshDebug();
  }catch(err){
-   setLastAction("LOAD DRAFT ERROR: "+err.message);
-   refreshDebug();
  }
 }
-
-
-let lastDebugAction="App loaded";
-
-function setLastAction(msg){
- lastDebugAction=new Date().toLocaleTimeString()+" — "+msg;
-}
-
-function totalBags(obj){
- return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);
-}
-
-function refreshDebug(){
- const el=document.getElementById('debugStatus');
- if(!el) return;
- let storageRaw="";
- try{ storageRaw=localStorage.getItem(marketKey())||"(none)"; }
- catch(e){ storageRaw="LOCALSTORAGE ERROR: "+e.message; }
-
- const lines=[
-   "VERSION: v10 DEBUG",
-   "MODE: "+inventoryMode.toUpperCase(),
-   "DATE: "+(document.getElementById('marketDate')?.value||"(none)"),
-   "LOCATION: "+(document.getElementById('marketLocation')?.value||"(none)"),
-   "MORNING PRODUCTS: "+Object.keys(inventoryMorning).length,
-   "MORNING TOTAL BAGS: "+totalBags(inventoryMorning),
-   "EVENING PRODUCTS: "+Object.keys(inventoryEvening).length,
-   "EVENING TOTAL BAGS: "+totalBags(inventoryEvening),
-   "SELECTED PRODUCT: "+(inventoryProduct||"(none)"),
-   "SELECTED QTY: "+inventoryQty,
-   "LAST ACTION: "+lastDebugAction,
-   "STORAGE KEY: "+marketKey(),
-   "SAVED DATA: "+storageRaw
- ];
- el.textContent=lines.join("\\n");
-}
-
-async function copyDebug(){
- refreshDebug();
- const text=document.getElementById('debugStatus').textContent;
- try{
-   await navigator.clipboard.writeText(text);
-   alert("Debug information copied.");
- }catch(e){
-   prompt("Copy this debug information:",text);
- }
-}
-
-window.addEventListener('error',function(e){
- setLastAction("JS ERROR: "+e.message+" @ "+e.lineno+":"+e.colno);
- refreshDebug();
-});
-window.addEventListener('unhandledrejection',function(e){
- setLastAction("PROMISE ERROR: "+String(e.reason));
- refreshDebug();
-});
 
 
 (function init(){
@@ -621,8 +591,7 @@ window.addEventListener('unhandledrejection',function(e){
  document.getElementById('marketDate').addEventListener('change',loadMarketDraft);
  document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);
  loadMarketDraft();
- setLastAction("Initialization complete");
- refreshDebug();
+ updateLiveResult();
 })();
 </script>
 </body>
