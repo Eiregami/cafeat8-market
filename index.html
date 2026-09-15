@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Cafeat8">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v12</title>
+<title>Cafeat8 Market v13</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
@@ -54,7 +54,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v12</h1>
+<h1>☕ Cafeat8 Market v13</h1>
 
 <div class="card">
 <div class="tabs">
@@ -148,6 +148,10 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}
 <button onclick="changeQty(1)">+</button>
 <button onclick="changeQty(5)">+5</button>
 </div>
+<div id="eveningQuickButtons" class="row" style="display:none;margin-top:10px">
+<button class="reward" onclick="setSoldOut()">SOLD OUT = 0</button>
+<button class="secondary" onclick="setNoSales()">NO SALES = SAME AS MORNING</button>
+</div>
 <div class="row">
 <button id="addQtyBtn" class="inventory" onclick="addInventoryQuantity()">Add to Morning Stock</button>
 <button class="secondary" onclick="resetInventorySelection()">Clear selection</button>
@@ -188,6 +192,7 @@ let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0;
 let audioCtx=null,soundEnabled=false;
 let inventoryMode="morning", inventoryProduct=null, inventoryQty=1;
 let inventoryMorning={}, inventoryEvening={};
+let eveningCounted={};
 
 const key=id=>"cafeat8_customer_"+id;
 const DATA_VERSION=1;
@@ -381,14 +386,18 @@ function startInventoryScanner(){
  startScannerOn("videoInventory",(text)=>{
    const product=productFromText(text);
    if(!product){document.getElementById('inventoryScanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}
-   inventoryProduct=product;inventoryQty=1;
+   inventoryProduct=product;inventoryQty=(inventoryMode==='evening'?0:1);
    document.getElementById('inventoryProduct').textContent=product;
    document.getElementById('inventoryQty').textContent=inventoryQty;
    document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${product} selected — choose quantity</div>`;
    stopScanner();
  },"inventoryScanStatus");
 }
-function changeQty(delta){inventoryQty=Math.max(1,inventoryQty+delta);document.getElementById('inventoryQty').textContent=inventoryQty;}
+function changeQty(delta){
+  const minQty = inventoryMode==='evening' ? 0 : 1;
+  inventoryQty=Math.max(minQty,inventoryQty+delta);
+  document.getElementById('inventoryQty').textContent=inventoryQty;
+}
 function resetInventorySelection(){inventoryProduct=null;inventoryQty=1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent="1";}
 function commitPendingInventory(){
  if(!inventoryProduct) return false;
@@ -414,49 +423,50 @@ function addInventoryQuantity(){
  commitPendingInventory();
 }
 function renderInventoryCurrent(){
- const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
- const entries=Object.entries(target);
- const el=document.getElementById('inventoryCurrent');
- if(!entries.length){el.innerHTML=`No ${inventoryMode} inventory entered yet.`;return;}
- const total=entries.reduce((s,[,n])=>s+n,0);
- el.innerHTML=entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item"><b>Total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
+  const el=document.getElementById('inventoryCurrent');
+  if(inventoryMode==='morning'){
+    const entries=Object.entries(inventoryMorning);
+    if(!entries.length){el.innerHTML="No morning inventory entered yet.";return;}
+    const total=entries.reduce((s,[,n])=>s+(Number(n)||0),0);
+    el.innerHTML=entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')
+      +`<div class="item"><b>Total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
+    return;
+  }
+  const products=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+  if(!products.length){el.innerHTML="No evening inventory entered yet.";return;}
+  const countedProducts=products.filter(p=>eveningCounted[p]);
+  const total=countedProducts.reduce((s,p)=>s+(Number(inventoryEvening[p])||0),0);
+  el.innerHTML=products.map(p=>{
+    if(!eveningCounted[p]) return `<div class="item">${p}: <b>NOT COUNTED</b></div>`;
+    const n=Number(inventoryEvening[p])||0;
+    return `<div class="item">${p}: <b>${n}</b> bags${n===0?' — SOLD OUT':''}</div>`;
+  }).join('') + `<div class="item"><b>Counted evening total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
 }
 
 function updateLiveResult(){
- const el=document.getElementById('marketResult');
- if(!el) return;
- try{
-   const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
-   if(saved.sold){
-     const sameMorning=JSON.stringify(saved.morning||{})===JSON.stringify(inventoryMorning||{});
-     const sameEvening=JSON.stringify(saved.evening||{})===JSON.stringify(inventoryEvening||{});
-     if(!(sameMorning&&sameEvening)){
-       delete saved.sold;
-       localStorage.setItem(marketKey(),JSON.stringify(saved));
-     }
-   }
- }catch(e){}
-
- const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
- const eveningTotal=Object.values(inventoryEvening).reduce((a,b)=>a+(Number(b)||0),0);
- if(morningTotal===0){el.innerHTML='<div class="muted">Enter morning stock first.</div>';return;}
- if(inventoryMode==='morning'){
-   el.innerHTML=`<div class="ok">Morning stock entered: <b>${morningTotal} bags</b> (${(morningTotal*.5).toFixed(1)} kg). When ready, press <b>Save Morning & Start Evening</b>.</div>`;
-   return;
- }
- if(eveningTotal===0){
-   el.innerHTML=`<div class="ok">Morning saved: <b>${morningTotal} bags</b>. Now enter the bags remaining in the evening.</div>`;
-   return;
- }
- const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
- const sold={};
- all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
- const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
- el.innerHTML=`<div class="summary-grid">
- <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
- ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
- </div><div class="item"><b>Current difference: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>
- <div class="small">Press Finish Market to save the final result.</div>`;
+  const el=document.getElementById('marketResult');
+  if(!el) return;
+  const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
+  if(morningTotal===0){el.innerHTML='<div class="muted">Enter morning stock first.</div>';return;}
+  if(inventoryMode==='morning'){
+    el.innerHTML=`<div class="ok">Morning stock entered: <b>${morningTotal} bags</b> (${(morningTotal*.5).toFixed(1)} kg). When ready, press <b>Save Morning & Start Evening</b>.</div>`;
+    return;
+  }
+  const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+  const counted=all.filter(p=>eveningCounted[p]);
+  if(counted.length===0){
+    el.innerHTML=`<div class="ok">Morning saved: <b>${morningTotal} bags</b>. Now count evening stock. Use <b>SOLD OUT = 0</b> or <b>NO SALES = SAME AS MORNING</b> when appropriate.</div>`;
+    return;
+  }
+  let totalSold=0;
+  const rows=all.map(p=>{
+    const am=Number(inventoryMorning[p]||0);
+    if(!eveningCounted[p]) return `<div>${p}</div><div>${am}</div><div><b>—</b></div><div><b>NOT COUNTED</b></div>`;
+    const pm=Number(inventoryEvening[p]||0), sold=Math.max(0,am-pm);
+    totalSold+=sold;
+    return `<div>${p}</div><div>${am}</div><div>${pm}</div><div><b>${sold}</b></div>`;
+  }).join('');
+  el.innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${rows}</div><div class="item"><b>Current counted sales: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div><div class="small">Products marked NOT COUNTED are excluded until you enter their evening quantity.</div>`;
 }
 
 function marketKey(){
@@ -531,38 +541,28 @@ function switchToEvening(){
 }
 
 function finishMarket(){
- try{
-   // Commit a pending evening product exactly once.
-   if(inventoryMode==='evening' && inventoryProduct) commitPendingInventory();
-
-   if(Object.keys(inventoryMorning).length===0){
-     const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
-     if(saved.morning)inventoryMorning={...saved.morning};
-   }
-   if(Object.keys(inventoryMorning).length===0)return alert("Morning stock is empty.");
-   if(Object.keys(inventoryEvening).length===0)return alert("Enter evening stock first.");
-
-   const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
-   const sold={};
-   all.forEach(p=>sold[p]=Math.max(0,(inventoryMorning[p]||0)-(inventoryEvening[p]||0)));
-   const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
-   const data={
-     date:document.getElementById('marketDate').value,
-     location:document.getElementById('marketLocation').value,
-     morning:{...inventoryMorning},evening:{...inventoryEvening},sold,mode:'finished'
-   };
-   localStorage.setItem(marketKey(),JSON.stringify(data));
-   document.getElementById('marketResult').innerHTML=`<div class="summary-grid">
-   <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
-   ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}
-   </div><div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
- }catch(err){ alert("Finish Market error: "+err.message); }
+  if(Object.keys(inventoryMorning).length===0){
+    const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
+    if(saved.morning) inventoryMorning=saved.morning;
+    if(saved.evening) inventoryEvening=saved.evening;
+    if(saved.eveningCounted) eveningCounted=saved.eveningCounted;
+  }
+  if(Object.keys(inventoryMorning).length===0) return alert("Morning stock is empty. Enter and save morning stock first.");
+  const missing=Object.keys(inventoryMorning).filter(p=>!eveningCounted[p]);
+  if(missing.length) return alert("Evening count is incomplete for: "+missing.join(", ")+"\n\nCount each coffee, or use SOLD OUT = 0 / NO SALES = SAME AS MORNING.");
+  const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
+  const sold={};
+  all.forEach(p=>sold[p]=Math.max(0,(Number(inventoryMorning[p])||0)-(Number(inventoryEvening[p])||0)));
+  const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
+  const data={date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,morning:inventoryMorning,evening:inventoryEvening,eveningCounted:eveningCounted,sold};
+  localStorage.setItem(marketKey(),JSON.stringify(data));
+  document.getElementById('marketResult').innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}</div><div class="item"><b>FINAL: ${totalSold} bags sold = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
 }
 
 function clearInventoryDay(){
  if(!confirm("Clear today's morning and evening inventory?"))return;
  localStorage.removeItem(marketKey());
- inventoryMorning={};inventoryEvening={};inventoryProduct=null;inventoryQty=1;
+ inventoryMorning={};inventoryEvening={};eveningCounted={};inventoryProduct=null;inventoryQty=1;
  resetInventorySelection();
  setInventoryMode('morning');
  renderInventoryCurrent();
@@ -606,7 +606,7 @@ function loadMarketDraft(){
        </div><div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
    }
  }catch(err){
-   inventoryMorning={};inventoryEvening={};inventoryMode='morning';
+   inventoryMorning={};inventoryEvening={};eveningCounted={};inventoryMode='morning';
    setInventoryMode('morning');
  }
 }
