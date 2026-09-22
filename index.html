@@ -4,621 +4,137 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Cafeat8">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v13</title>
+<title>Cafeat8 Market v14</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
-.wrap{max-width:760px;margin:auto;padding:18px}
-h1{font-size:30px;margin:8px 0 18px}
-h2{margin-top:4px}
-.card{background:#fff;border-radius:20px;padding:16px;margin:14px 0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
-input,select{font-size:24px;width:100%;box-sizing:border-box;padding:13px;border:1px solid #bbb;border-radius:14px;background:white}
+.wrap{max-width:760px;margin:auto;padding:18px}.card{background:#fff;border-radius:20px;padding:16px;margin:14px 0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+h1{font-size:30px} input,select{font-size:24px;width:100%;box-sizing:border-box;padding:13px;border:1px solid #bbb;border-radius:14px;background:white}
 button{font-size:20px;font-weight:750;border:0;border-radius:14px;padding:14px 16px;margin:7px 5px 7px 0;background:#205b36;color:white}
-button.secondary{background:#ddd;color:#222}
-button.reward{background:#9a6b13}
-button.sound{background:#1e6bb8}
-button.inventory{background:#7b4d16}
-button.mode{background:#e8e8e8;color:#222}
-button.mode.active{background:#205b36;color:white}
-.big{font-size:31px;font-weight:850}
-.muted{color:#666}
-.row{display:flex;gap:8px;flex-wrap:wrap}
-.item{padding:11px 0;border-bottom:1px solid #eee}
-video{width:100%;border-radius:14px;background:#111;max-height:420px}
-.ok{background:#e8f6ea;padding:12px;border-radius:12px}
-.warn{background:#fff3cd;padding:12px;border-radius:12px}
+.secondary{background:#ddd;color:#222}.reward{background:#9a6b13}.sound{background:#1e6bb8}.danger{background:#a83232}.full{width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap}.muted{color:#666}.item{padding:11px 0;border-bottom:1px solid #eee}
+video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{background:#e8f6ea;padding:12px;border-radius:12px}.warn{background:#fff3cd;padding:12px;border-radius:12px}
+.tabs{display:flex;gap:8px}.tab{flex:1;background:#ddd;color:#222}.tab.active{background:#205b36;color:white}.panel{display:none}.panel.active{display:block}
+.stage{padding:16px;border-radius:16px;font-size:27px;font-weight:900;text-align:center}.morning{background:#fff3cd}.evening{background:#e8f6ea}.finished{background:#e6eefc}
+.qtybox{display:flex;align-items:center;gap:12px}.qtybox button{font-size:28px;min-width:56px}.qtyvalue{font-size:34px;font-weight:900;min-width:64px;text-align:center}
+.product-name{font-size:26px;font-weight:900}.summary-grid{display:grid;grid-template-columns:1fr auto auto auto;gap:8px}.summary-head{font-weight:800;border-bottom:2px solid #ddd}
 .customer-banner{background:#e8f6ea;border:2px solid #2f7a49;border-radius:14px;padding:12px;font-size:24px;font-weight:800}
-.small{font-size:15px;color:#666}
-.tabs{display:flex;gap:8px;margin-bottom:10px}
-.tab{flex:1;background:#ddd;color:#222}
-.tab.active{background:#205b36;color:white}
-.panel{display:none}.panel.active{display:block}
-.qtybox{display:flex;align-items:center;gap:12px;margin-top:10px}
-.qtybox button{font-size:28px;min-width:56px}
-.qtyvalue{font-size:34px;font-weight:900;min-width:64px;text-align:center}
-.product-name{font-size:26px;font-weight:900}
-.summary-grid{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center}
-.summary-head{font-weight:800;border-bottom:2px solid #ddd;padding-bottom:6px}
-#celebrationOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.10);z-index:9999;overflow:hidden}
-#celebrationOverlay.show{display:flex}
-.celebration-card{background:white;border-radius:24px;padding:26px 20px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.18);max-width:86vw;position:relative;z-index:2}
-.celebration-title{font-size:34px;font-weight:900;color:#205b36;margin-bottom:8px}
-.celebration-sub{font-size:22px;font-weight:800;margin-bottom:8px}
-.celebration-free{font-size:30px;font-weight:900;color:#9a6b13}
-.particle{position:absolute;width:14px;height:14px;border-radius:50%;animation:burst 1.8s ease-out forwards;opacity:.95}
+#celebrationOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.1);z-index:9999;overflow:hidden}
+#celebrationOverlay.show{display:flex}.celebration-card{background:white;border-radius:24px;padding:26px;text-align:center;z-index:2}.particle{position:absolute;width:14px;height:14px;border-radius:50%;animation:burst 1.8s ease-out forwards}
 @keyframes burst{0%{transform:translate(0,0) scale(.2);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v13</h1>
+<h1>☕ Cafeat8 Market v14</h1>
 
-<div class="card">
-<div class="tabs">
+<div class="card"><div class="tabs">
 <button id="tabSales" class="tab active" onclick="showPanel('sales')">Customer / Fidelity</button>
 <button id="tabInventory" class="tab" onclick="showPanel('inventory')">Market Inventory</button>
-</div>
-</div>
+</div></div>
 
 <div id="salesPanel" class="panel active">
-
-<div class="card">
-<button class="sound" onclick="enableSound()">🔊 Enable sound</button>
-<div id="soundStatus" class="muted">On iPhone, tap once to enable reward sound.</div>
-</div>
-
-<div class="card">
-<label><b>Customer number</b></label>
-<input id="customer" inputmode="numeric" placeholder="e.g. 00824">
-<div class="row">
-<button onclick="selectCustomer()">Open / create customer</button>
-<button class="secondary" onclick="clearCustomer()">Clear</button>
-</div>
-<div id="custStatus" class="muted">No customer selected</div>
-</div>
-
-<div class="card">
-<div class="big">Fidelity: <span id="loyalty">0</span>/10</div>
-<div id="rewardStatus" class="muted">No free bag available</div>
-</div>
-
-<div class="card">
-<button onclick="startSalesScanner()">📷 Scan one coffee bag</button>
-<button class="secondary" onclick="stopScanner()">Stop camera</button>
-<video id="videoSales" playsinline muted></video>
-<div id="scanStatus" class="muted">Ready to scan a coffee QR.</div>
-</div>
-
-<div class="card">
-<h2>Current purchase</h2>
-<div id="purchaseList" class="muted">No bags scanned</div>
-<div class="row">
-<button onclick="finishSale()">Finish paid sale</button>
-<button class="reward" onclick="redeemReward()">Use free bag</button>
-<button class="secondary" onclick="clearPurchase()">Clear purchase</button>
-</div>
-</div>
-
-<div class="card">
-<h2>Customer history</h2>
-<div id="history" class="muted">Select a customer</div>
-</div>
-
+<div class="card"><button class="sound" onclick="enableSound()">🔊 Enable sound</button><div id="soundStatus" class="muted">Tap once on iPhone to enable reward sound.</div></div>
+<div class="card"><b>Customer number</b><input id="customer" inputmode="numeric" placeholder="e.g. 00824">
+<div class="row"><button onclick="selectCustomer()">Open / create customer</button><button class="secondary" onclick="clearCustomer()">Clear</button></div>
+<div id="custStatus" class="muted">No customer selected</div></div>
+<div class="card"><div style="font-size:31px;font-weight:850">Fidelity: <span id="loyalty">0</span>/10</div><div id="rewardStatus" class="muted">No free bag available</div></div>
+<div class="card"><button onclick="startSalesScanner()">📷 Scan one coffee bag</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
+<video id="videoSales" playsinline muted></video><div id="scanStatus" class="muted">Ready to scan.</div></div>
+<div class="card"><h2>Current purchase</h2><div id="purchaseList" class="muted">No bags scanned</div>
+<div class="row"><button onclick="finishSale()">Finish paid sale</button><button class="reward" onclick="redeemReward()">Use free bag</button><button class="secondary" onclick="clearPurchase()">Clear purchase</button></div></div>
+<div class="card"><h2>Customer history</h2><div id="history" class="muted">Select a customer</div></div>
 </div>
 
 <div id="inventoryPanel" class="panel">
+<div class="card"><h2>Market</h2><label>Date</label><input id="marketDate" type="date">
+<label>Location</label><select id="marketLocation"><option>Antwerp</option><option>Brussels</option><option>Other</option></select></div>
+
+<div class="card"><div id="stageBanner" class="stage morning">🌅 MORNING INVENTORY</div><div id="stageHelp" class="muted">Scan a coffee, choose quantity, then add it.</div></div>
+
+<div class="card" id="scannerCard"><button onclick="startInventoryScanner()">📷 Scan coffee QR</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
+<video id="videoInventory" playsinline muted></video><div id="inventoryScanStatus" class="muted">Scan one product QR.</div></div>
+
+<div class="card" id="quantityCard"><h2>Selected product</h2><div id="inventoryProduct" class="product-name">No product scanned</div>
+<div class="qtybox"><button class="secondary" onclick="changeQty(-1)">−</button><div id="inventoryQty" class="qtyvalue">1</div><button onclick="changeQty(1)">+</button><button onclick="changeQty(5)">+5</button></div>
+<div id="eveningQuickButtons" class="row" style="display:none"><button class="reward" onclick="setSoldOut()">SOLD OUT = 0</button><button class="secondary" onclick="setNoSales()">NO SALES = SAME AS MORNING</button></div>
+<button id="addQtyBtn" class="full" onclick="addInventoryQuantity()">ADD TO MORNING STOCK</button></div>
+
+<div class="card"><h2 id="countTitle">Morning stock entered</h2><div id="inventoryCurrent" class="muted">No morning inventory entered yet.</div></div>
 
 <div class="card">
-<h2>Market</h2>
-<label>Date</label>
-<input id="marketDate" type="date">
-<label style="margin-top:10px">Location</label>
-<select id="marketLocation">
-<option value="Antwerp">Antwerp</option>
-<option value="Brussels">Brussels</option>
-<option value="Other">Other</option>
-</select>
+<button id="primaryStageButton" class="full" onclick="advanceInventoryStage()">SAVE MORNING</button>
+<button id="secondaryStageButton" class="secondary full" style="display:none" onclick="advanceInventoryStage()">START EVENING COUNT</button>
+<button id="finishButton" class="reward full" style="display:none" onclick="finishMarket()">FINISH MARKET</button>
 </div>
 
-<div class="card">
-<h2>Inventory mode</h2>
-<div class="row">
-<button id="morningBtn" class="mode active" onclick="setInventoryMode('morning')">🌅 Enter Morning Stock</button>
-<button id="eveningBtn" class="mode" onclick="switchToEvening()">🌙 Start Evening Count</button>
-</div>
-<div id="inventoryModeText" class="muted">Scanning for morning stock.</div><div id="modeBanner" style="margin-top:12px;padding:14px;border-radius:14px;background:#fff3cd;font-size:26px;font-weight:900;text-align:center">🌅 MORNING MODE</div>
-</div>
-
-<div class="card">
-<button class="inventory" onclick="startInventoryScanner()">📷 Scan coffee QR</button>
-<button class="secondary" onclick="stopScanner()">Stop camera</button>
-<video id="videoInventory" playsinline muted></video>
-<div id="inventoryScanStatus" class="muted">Scan one product QR, then choose quantity.</div>
-</div>
-
-<div class="card">
-<h2>Selected product</h2>
-<div id="inventoryProduct" class="product-name">No product scanned</div>
-<div class="qtybox">
-<button class="secondary" onclick="changeQty(-1)">−</button>
-<div id="inventoryQty" class="qtyvalue">1</div>
-<button onclick="changeQty(1)">+</button>
-<button onclick="changeQty(5)">+5</button>
-</div>
-<div id="eveningQuickButtons" class="row" style="display:none;margin-top:10px">
-<button class="reward" onclick="setSoldOut()">SOLD OUT = 0</button>
-<button class="secondary" onclick="setNoSales()">NO SALES = SAME AS MORNING</button>
-</div>
-<div class="row">
-<button id="addQtyBtn" class="inventory" onclick="addInventoryQuantity()">Add to Morning Stock</button>
-<button class="secondary" onclick="resetInventorySelection()">Clear selection</button>
+<div class="card"><h2>Market result</h2><div id="marketResult" class="muted">Morning and evening counts are needed.</div></div>
+<div class="card"><button class="danger full" onclick="clearInventoryDay()">RESET DAY</button></div>
 </div>
 </div>
 
-<div class="card">
-<h2>Current market count</h2>
-<div id="inventoryCurrent" class="muted">No inventory entered yet.</div>
-<div class="row">
-<button onclick="saveMorning()">💾 Save Morning Stock</button>
-<button onclick="switchToEvening()">🌙 Save Morning & Start Evening</button>
-<button class="reward" onclick="finishMarket()">✅ Finish Market</button>
-<button class="secondary" onclick="clearInventoryDay()">Clear Day</button>
-</div>
-</div>
-
-<div class="card">
-<h2>Market result</h2>
-<div id="marketResult" class="muted">Morning and evening counts are needed.</div>
-</div>
-
-</div>
-</div>
-</div>
-
-<div id="celebrationOverlay" onclick="hideCelebration()">
-  <div class="celebration-card">
-    <div class="celebration-title">🎉 Reward unlocked!</div>
-    <div class="celebration-sub" id="celebrationCustomer">Customer</div>
-    <div class="celebration-free">1 FREE BAG earned ☕</div>
-    <div class="small">Tap anywhere to close</div>
-  </div>
-</div>
+<div id="celebrationOverlay" onclick="hideCelebration()"><div class="celebration-card"><h2>🎉 Reward unlocked!</h2><div id="celebrationCustomer"></div><h2>1 FREE BAG earned ☕</h2></div></div>
 
 <script>
-let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0;
-let audioCtx=null,soundEnabled=false;
-let inventoryMode="morning", inventoryProduct=null, inventoryQty=1;
-let inventoryMorning={}, inventoryEvening={};
-let eveningCounted={};
-
+let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0,audioCtx=null,soundEnabled=false;
+let inventoryStage="morning",inventoryProduct=null,inventoryQty=1,inventoryMorning={},inventoryEvening={},eveningCounted={};
 const key=id=>"cafeat8_customer_"+id;
-const DATA_VERSION=1;
-function getData(id){
-  let d;
-  try{ d=JSON.parse(localStorage.getItem(key(id))||'null'); }catch(e){ d=null; }
-  if(!d||typeof d!=="object") d={paid:0,freeUsed:0,products:{},history:[]};
-  if(typeof d.paid!=="number") d.paid=0;
-  if(typeof d.freeUsed!=="number") d.freeUsed=0;
-  if(!d.products||typeof d.products!=="object") d.products={};
-  if(!Array.isArray(d.history)) d.history=[];
-  d.v=DATA_VERSION;
-  return d;
-}
-function saveData(id,d){
-  try{ localStorage.setItem(key(id),JSON.stringify(d)); }
-  catch(e){ alert("Could not save customer data."); }
-}
 
-function showPanel(name){
- document.getElementById('salesPanel').classList.toggle('active',name==='sales');
- document.getElementById('inventoryPanel').classList.toggle('active',name==='inventory');
- document.getElementById('tabSales').classList.toggle('active',name==='sales');
- document.getElementById('tabInventory').classList.toggle('active',name==='inventory');
- stopScanner();
-}
+function getData(id){let d;try{d=JSON.parse(localStorage.getItem(key(id))||'null')}catch(e){}if(!d)d={paid:0,freeUsed:0,products:{},history:[]};return d}
+function saveData(id,d){localStorage.setItem(key(id),JSON.stringify(d))}
+function showPanel(name){document.getElementById('salesPanel').classList.toggle('active',name==='sales');document.getElementById('inventoryPanel').classList.toggle('active',name==='inventory');document.getElementById('tabSales').classList.toggle('active',name==='sales');document.getElementById('tabInventory').classList.toggle('active',name==='inventory');stopScanner()}
+async function enableSound(){const C=window.AudioContext||window.webkitAudioContext;if(!audioCtx)audioCtx=new C();if(audioCtx.state==="suspended")await audioCtx.resume();soundEnabled=true;document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';playTestSound()}
+function playTestSound(){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=660;g.gain.value=.08;o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.15)}
 
-async function enableSound(){
- try{
-   const AudioCtx=window.AudioContext||window.webkitAudioContext;
-   if(!audioCtx) audioCtx=new AudioCtx();
-   if(audioCtx.state==="suspended") await audioCtx.resume();
-   soundEnabled=true;
-   document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';
-   playTestSound();
- }catch(e){
-   document.getElementById('soundStatus').innerHTML='<div class="warn">Sound could not be enabled.</div>';
- }
-}
-function playTestSound(){
- if(!audioCtx||audioCtx.state!=="running")return;
- const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
- osc.type='sine';osc.frequency.value=660;
- gain.gain.setValueAtTime(.0001,audioCtx.currentTime);
- gain.gain.exponentialRampToValueAtTime(.08,audioCtx.currentTime+.02);
- gain.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.18);
- osc.connect(gain).connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+.2);
-}
+function selectCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number first");if(currentCustomer&&currentCustomer!==id)purchase=[];currentCustomer=id;if(!localStorage.getItem(key(id)))saveData(id,getData(id));renderCustomer()}
+function clearCustomer(){currentCustomer=null;purchase=[];document.getElementById('customer').value="";document.getElementById('custStatus').textContent="No customer selected";document.getElementById('loyalty').textContent="0";document.getElementById('rewardStatus').textContent="No free bag available";document.getElementById('history').textContent="Select a customer";renderPurchase()}
+function renderCustomer(){if(!currentCustomer)return;const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div>${d.paid} paid bags total</div>`;document.getElementById('loyalty').textContent=progress;document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";const e=Object.entries(d.products);document.getElementById('history').innerHTML=e.length?e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";renderPurchase()}
 
-function selectCustomer(){
- const id=document.getElementById('customer').value.trim();
- if(!id)return alert("Enter customer number first");
- if(currentCustomer && currentCustomer!==id) purchase=[];
- currentCustomer=id;
- if(!localStorage.getItem(key(id)))saveData(id,getData(id));
- renderCustomer();
-}
-function clearCustomer(){
- currentCustomer=null;
- purchase=[];
- document.getElementById('customer').value="";
- document.getElementById('custStatus').innerHTML="No customer selected";
- document.getElementById('loyalty').textContent="0";
- document.getElementById('rewardStatus').textContent="No free bag available";
- document.getElementById('history').textContent="Select a customer";
- renderPurchase();
-}
-function renderCustomer(){
- if(!currentCustomer)return;
- const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;
- document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div class="small">${d.paid} paid bags total</div>`;
- document.getElementById('loyalty').textContent=progress;
- document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";
- const entries=Object.entries(d.products);
- document.getElementById('history').innerHTML=entries.length?entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";
- renderPurchase();
-}
+function canonicalize(t){let s=(t||"").trim();try{if(/^https?:\/\//i.test(s))s=new URL(s).pathname}catch(e){}return s.split('?')[0].split('#')[0].toLowerCase()}
+function productFromText(t){const raw=(t||"").trim();let m=raw.match(/PRODUCT=([^|&]+)/i)||raw.match(/P=([^|&]+)/i);if(m)return m[1].trim().toUpperCase();const map={"/3-brazil-medium-1/":"BRAZIL","/14-peru/":"PERU","/21-mexico/":"MEXICO","/6-sumatra/":"SUMATRA","/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY","/12-robusta-coffee/":"ROBUSTA","/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO","/10-decaffeinated-coffee/":"DECAFFEINATED"};const c=canonicalize(raw)+(canonicalize(raw).endsWith('/')?'':'/');for(const [part,name] of Object.entries(map))if(c.includes(part))return name;return null}
 
-function canonicalizeQR(text){
- let raw=(text||"").trim();
- try{
-   if(/^https?:\/\//i.test(raw)){
-     const u=new URL(raw);
-     raw=u.pathname;
-   }
- }catch(e){}
- raw=raw.split('?')[0].split('#')[0].toLowerCase();
- return raw.endsWith('/')?raw:raw+'/';
-}
-function productFromText(text){
- const raw=(text||"").trim();
- let m=raw.match(/PRODUCT=([^|&]+)/i)||raw.match(/P=([^|&]+)/i);
- if(m)return m[1].trim().toUpperCase();
- const map={
-  "/3-brazil-medium-1/":"BRAZIL",
-  "/14-peru/":"PERU",
-  "/21-mexico/":"MEXICO",
-  "/6-sumatra/":"SUMATRA",
-  "/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY",
-  "/12-robusta-coffee/":"ROBUSTA",
-  "/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO",
-  "/10-decaffeinated-coffee/":"DECAFFEINATED"
- };
- const canon=canonicalizeQR(raw);
- for(const [part,name] of Object.entries(map)) if(canon.includes(part)) return name;
- for(const [part,name] of Object.entries(map)) if(raw.toLowerCase().includes(part)) return name;
- return null;
-}
+async function startScannerOn(videoId,cb,statusId){stopScanner();lastText="";lastTime=0;try{const r=new ZXingBrowser.BrowserQRCodeReader();controls=await r.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById(videoId),(result)=>{if(!result)return;const text=result.getText(),now=Date.now();if(text===lastText&&now-lastTime<1500)return;lastText=text;lastTime=now;cb(text)});document.getElementById(statusId).textContent="Scanner active — point camera at the QR."}catch(e){document.getElementById(statusId).innerHTML='<div class="warn">Camera could not start.</div>';controls=null}}
+function stopScanner(){if(controls){try{controls.stop()}catch(e){}controls=null}["videoSales","videoInventory"].forEach(id=>{const v=document.getElementById(id);if(v&&v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}})}
 
-async function startScannerOn(videoId, callback, statusId){
- stopScanner();
- lastText=""; lastTime=0;
- try{
-   const reader=new ZXingBrowser.BrowserQRCodeReader();
-   controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById(videoId),(result)=>{
-     if(!result)return;
-     const text=result.getText(),now=Date.now();
-     if(text===lastText&&now-lastTime<1500)return;
-     lastText=text;lastTime=now;
-     callback(text);
-   });
-   document.getElementById(statusId).textContent="Scanner active — point camera at the QR.";
- }catch(e){
-   document.getElementById(statusId).innerHTML='<div class="warn">Camera could not start. Use Safari and allow Camera access.</div>';
-   controls=null;
- }
-}
-function stopScanner(){
- if(controls){try{controls.stop();}catch(e){}controls=null;}
- ["videoSales","videoInventory"].forEach(id=>{
-   const v=document.getElementById(id);
-   if(v&&v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
- });
-}
+function startSalesScanner(){if(!currentCustomer)return alert("Open a customer first");startScannerOn("videoSales",(text)=>{const p=productFromText(text);if(!p)return;purchase.push(p);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${p} added</div>`;renderPurchase();stopScanner()},"scanStatus")}
+function renderPurchase(){const el=document.getElementById('purchaseList');if(!purchase.length){el.textContent="No bags scanned";return}const c={};purchase.forEach(p=>c[p]=(c[p]||0)+1);el.innerHTML=Object.entries(c).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b></div>`}
+function finishSale(){if(!currentCustomer||!purchase.length)return alert("Open customer and scan coffee first");const d=getData(currentCustomer),before=Math.floor(d.paid/10);d.paid+=purchase.length;purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});saveData(currentCustomer,d);const nr=Math.floor(d.paid/10)-before;purchase=[];renderCustomer();if(nr>0)celebrateReward(currentCustomer,nr)}
+function redeemReward(){if(!currentCustomer||purchase.length!==1)return alert("Open customer and scan exactly one free bag");const d=getData(currentCustomer),a=Math.floor(d.paid/10)-d.freeUsed;if(a<1)return alert("No free bag available");d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);purchase=[];renderCustomer()}
+function clearPurchase(){purchase=[];renderPurchase()}
 
-function startSalesScanner(){
- if(!currentCustomer)return alert("First enter and open a customer number.");
- startScannerOn("videoSales",(text)=>{
-   const product=productFromText(text);
-   if(!product){document.getElementById('scanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}
-   purchase.push(product);
-   document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${product} added</div>`;
-   renderPurchase();stopScanner();
- },"scanStatus");
-}
-function renderPurchase(){
- const el=document.getElementById('purchaseList');
- if(!purchase.length){el.innerHTML="No bags scanned";return;}
- const counts={};purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
- el.innerHTML=Object.entries(counts).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b> bag(s)</div>`;
-}
-function finishSale(){
- if(!currentCustomer)return alert("Open a customer first");
- if(!purchase.length)return alert("Scan at least one coffee bag");
- const d=getData(currentCustomer),rewardsBefore=Math.floor(d.paid/10);
- d.paid+=purchase.length;
- purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);
- d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});
- saveData(currentCustomer,d);
- const newRewards=Math.floor(d.paid/10)-rewardsBefore;
- purchase=[];document.getElementById('scanStatus').textContent="Sale saved.";renderCustomer();
- if(newRewards>0)celebrateReward(currentCustomer,newRewards);
-}
-function redeemReward(){
- if(!currentCustomer)return alert("Open a customer first");
- if(purchase.length!==1)return alert("For a free bag, scan exactly one coffee bag.");
- const d=getData(currentCustomer),available=Math.floor(d.paid/10)-d.freeUsed;
- if(available<1)return alert("This customer has no free bag available.");
- d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);
- purchase=[];document.getElementById('scanStatus').textContent="Free bag recorded.";renderCustomer();
-}
-function clearPurchase(){purchase=[];renderPurchase();}
+function marketKey(){const d=document.getElementById('marketDate').value||new Date().toISOString().slice(0,10),l=document.getElementById('marketLocation').value;return `cafeat8_market_${d}_${l}`}
+function saveMarketDraft(){localStorage.setItem(marketKey(),JSON.stringify({date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,stage:inventoryStage,morning:inventoryMorning,evening:inventoryEvening,eveningCounted}))}
+function loadMarketDraft(){let s={};try{s=JSON.parse(localStorage.getItem(marketKey())||'{}')}catch(e){}inventoryMorning=s.morning||{};inventoryEvening=s.evening||{};eveningCounted=s.eveningCounted||{};inventoryStage=s.stage||"morning";renderInventoryUI()}
+function startInventoryScanner(){if(inventoryStage==="waiting")return alert("Press START EVENING COUNT later.");if(inventoryStage==="finished")return alert("Market already finished.");startScannerOn("videoInventory",(text)=>{const p=productFromText(text);if(!p)return;inventoryProduct=p;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent=p;document.getElementById('inventoryQty').textContent=inventoryQty;document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${p} selected</div>`;stopScanner()},"inventoryScanStatus")}
+function changeQty(d){const min=inventoryStage==="evening"?0:1;inventoryQty=Math.max(min,inventoryQty+d);document.getElementById('inventoryQty').textContent=inventoryQty}
+function resetInventorySelection(){inventoryProduct=null;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent=inventoryQty}
+function setSoldOut(){if(inventoryStage!=="evening"||!inventoryProduct)return;inventoryQty=0;document.getElementById('inventoryQty').textContent=0}
+function setNoSales(){if(inventoryStage!=="evening"||!inventoryProduct)return;inventoryQty=Number(inventoryMorning[inventoryProduct]||0);document.getElementById('inventoryQty').textContent=inventoryQty}
+function addInventoryQuantity(){if(!inventoryProduct)return alert("Scan a coffee first");const p=inventoryProduct,q=inventoryQty;if(inventoryStage==="morning")inventoryMorning[p]=(inventoryMorning[p]||0)+q;else{inventoryEvening[p]=q;eveningCounted[p]=true}resetInventorySelection();saveMarketDraft();renderInventoryUI()}
+function advanceInventoryStage(){if(inventoryStage==="morning"){if(Object.values(inventoryMorning).reduce((a,b)=>a+Number(b||0),0)===0)return alert("Enter morning stock first");inventoryStage="waiting"}else if(inventoryStage==="waiting")inventoryStage="evening";saveMarketDraft();renderInventoryUI()}
 
-function setInventoryMode(mode){
- inventoryMode=mode;
- document.getElementById('morningBtn').classList.toggle('active',mode==='morning');
- document.getElementById('eveningBtn').classList.toggle('active',mode==='evening');
- document.getElementById('inventoryModeText').textContent=
-   mode==='morning' ? "Scanning for morning stock." : "Scanning for evening remaining stock.";
- const btn=document.getElementById('addQtyBtn');
- if(btn) btn.textContent=mode==='morning' ? "Add to Morning Stock" : "Add to Evening Stock";
- const banner=document.getElementById('modeBanner');
- if(banner){
-   banner.textContent=mode==='morning' ? "🌅 MORNING MODE" : "🌙 EVENING MODE";
-   banner.style.background=mode==='morning' ? "#fff3cd" : "#e8f6ea";
- }
- renderInventoryCurrent();
- updateLiveResult();
-}
-function startInventoryScanner(){
- startScannerOn("videoInventory",(text)=>{
-   const product=productFromText(text);
-   if(!product){document.getElementById('inventoryScanStatus').innerHTML=`<div class="warn">QR read, but product not recognized:<br>${text}</div>`;return;}
-   inventoryProduct=product;inventoryQty=(inventoryMode==='evening'?0:1);
-   document.getElementById('inventoryProduct').textContent=product;
-   document.getElementById('inventoryQty').textContent=inventoryQty;
-   document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${product} selected — choose quantity</div>`;
-   stopScanner();
- },"inventoryScanStatus");
-}
-function changeQty(delta){
-  const minQty = inventoryMode==='evening' ? 0 : 1;
-  inventoryQty=Math.max(minQty,inventoryQty+delta);
-  document.getElementById('inventoryQty').textContent=inventoryQty;
-}
-function resetInventorySelection(){inventoryProduct=null;inventoryQty=1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent="1";}
-function commitPendingInventory(){
- if(!inventoryProduct) return false;
- const target=inventoryMode==='morning'?inventoryMorning:inventoryEvening;
- const addedProduct=inventoryProduct, addedQty=inventoryQty;
- target[addedProduct]=(target[addedProduct]||0)+addedQty;
- resetInventorySelection();
- if(inventoryMode==='morning'){
-   saveMorning(true);
- } else {
-   saveEveningDraft();
- }
- document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">${addedQty} × ${addedProduct} added to ${inventoryMode} stock.</div>`;
- renderInventoryCurrent();
- updateLiveResult();
- return true;
-}
-function addInventoryQuantity(){
- if(!inventoryProduct){
-   return alert("Scan a coffee QR first");
- }
- const p=inventoryProduct, q=inventoryQty, m=inventoryMode;
- commitPendingInventory();
-}
-function renderInventoryCurrent(){
-  const el=document.getElementById('inventoryCurrent');
-  if(inventoryMode==='morning'){
-    const entries=Object.entries(inventoryMorning);
-    if(!entries.length){el.innerHTML="No morning inventory entered yet.";return;}
-    const total=entries.reduce((s,[,n])=>s+(Number(n)||0),0);
-    el.innerHTML=entries.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')
-      +`<div class="item"><b>Total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
-    return;
-  }
-  const products=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
-  if(!products.length){el.innerHTML="No evening inventory entered yet.";return;}
-  const countedProducts=products.filter(p=>eveningCounted[p]);
-  const total=countedProducts.reduce((s,p)=>s+(Number(inventoryEvening[p])||0),0);
-  el.innerHTML=products.map(p=>{
-    if(!eveningCounted[p]) return `<div class="item">${p}: <b>NOT COUNTED</b></div>`;
-    const n=Number(inventoryEvening[p])||0;
-    return `<div class="item">${p}: <b>${n}</b> bags${n===0?' — SOLD OUT':''}</div>`;
-  }).join('') + `<div class="item"><b>Counted evening total: ${total} bags = ${(total*.5).toFixed(1)} kg</b></div>`;
-}
+function renderInventoryUI(){
+const b=document.getElementById('stageBanner'),h=document.getElementById('stageHelp'),a=document.getElementById('addQtyBtn'),q=document.getElementById('eveningQuickButtons'),p=document.getElementById('primaryStageButton'),s=document.getElementById('secondaryStageButton'),f=document.getElementById('finishButton'),sc=document.getElementById('scannerCard'),qc=document.getElementById('quantityCard'),ct=document.getElementById('countTitle');
+if(inventoryStage==="morning"){b.className="stage morning";b.textContent="🌅 MORNING INVENTORY";h.textContent="Scan a coffee, choose quantity, then add it.";a.textContent="ADD TO MORNING STOCK";q.style.display="none";p.style.display="block";p.textContent="SAVE MORNING";s.style.display="none";f.style.display="none";sc.style.display="block";qc.style.display="block";ct.textContent="Morning stock entered"}
+else if(inventoryStage==="waiting"){b.className="stage morning";b.textContent="✅ MORNING SAVED";h.textContent="When the market is finished, start the evening count.";p.style.display="none";s.style.display="block";f.style.display="none";sc.style.display="none";qc.style.display="none";ct.textContent="Morning stock saved"}
+else if(inventoryStage==="evening"){b.className="stage evening";b.textContent="🌙 EVENING INVENTORY";h.textContent="Enter what remains.";a.textContent="ADD TO EVENING STOCK";q.style.display="flex";p.style.display="none";s.style.display="none";f.style.display="block";sc.style.display="block";qc.style.display="block";ct.textContent="Evening stock entered"}
+else{b.className="stage finished";b.textContent="✅ MARKET FINISHED";h.textContent="The final result is saved.";p.style.display="none";s.style.display="none";f.style.display="none";sc.style.display="none";qc.style.display="none";ct.textContent="Final inventory"}
+renderInventoryCurrent();renderMarketResult()}
 
-function updateLiveResult(){
-  const el=document.getElementById('marketResult');
-  if(!el) return;
-  const morningTotal=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
-  if(morningTotal===0){el.innerHTML='<div class="muted">Enter morning stock first.</div>';return;}
-  if(inventoryMode==='morning'){
-    el.innerHTML=`<div class="ok">Morning stock entered: <b>${morningTotal} bags</b> (${(morningTotal*.5).toFixed(1)} kg). When ready, press <b>Save Morning & Start Evening</b>.</div>`;
-    return;
-  }
-  const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
-  const counted=all.filter(p=>eveningCounted[p]);
-  if(counted.length===0){
-    el.innerHTML=`<div class="ok">Morning saved: <b>${morningTotal} bags</b>. Now count evening stock. Use <b>SOLD OUT = 0</b> or <b>NO SALES = SAME AS MORNING</b> when appropriate.</div>`;
-    return;
-  }
-  let totalSold=0;
-  const rows=all.map(p=>{
-    const am=Number(inventoryMorning[p]||0);
-    if(!eveningCounted[p]) return `<div>${p}</div><div>${am}</div><div><b>—</b></div><div><b>NOT COUNTED</b></div>`;
-    const pm=Number(inventoryEvening[p]||0), sold=Math.max(0,am-pm);
-    totalSold+=sold;
-    return `<div>${p}</div><div>${am}</div><div>${pm}</div><div><b>${sold}</b></div>`;
-  }).join('');
-  el.innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${rows}</div><div class="item"><b>Current counted sales: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div><div class="small">Products marked NOT COUNTED are excluded until you enter their evening quantity.</div>`;
-}
+function renderInventoryCurrent(){const el=document.getElementById('inventoryCurrent');if(inventoryStage==="morning"||inventoryStage==="waiting"){const e=Object.entries(inventoryMorning);if(!e.length){el.textContent="No morning inventory entered yet.";return}const t=e.reduce((s,[,n])=>s+Number(n||0),0);el.innerHTML=e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item"><b>Total: ${t} bags = ${(t*.5).toFixed(1)} kg</b></div>`;return}const prods=Object.keys(inventoryMorning);el.innerHTML=prods.map(p=>eveningCounted[p]?`<div class="item">${p}: <b>${Number(inventoryEvening[p]||0)}</b> bags${Number(inventoryEvening[p]||0)===0?' — SOLD OUT':''}</div>`:`<div class="item">${p}: <b>NOT COUNTED</b></div>`).join('')}
 
-function marketKey(){
- const date=document.getElementById('marketDate').value||new Date().toISOString().slice(0,10);
- const loc=document.getElementById('marketLocation').value;
- return `cafeat8_market_${date}_${loc}`;
-}
-function saveMorning(silent=false){
- try{
-   const totalMorning=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
-   if(totalMorning===0){
-     if(!silent)alert("Morning stock is still empty. Scan a coffee, choose quantity, and press Add to Morning Stock.");
-     return false;
-   }
-   const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
-   data.date=document.getElementById('marketDate').value;
-   data.location=document.getElementById('marketLocation').value;
-   data.morning={...inventoryMorning};
-   data.evening=data.evening||{};
-   data.mode=data.mode||'morning';
-   localStorage.setItem(marketKey(),JSON.stringify(data));
-   if(!silent)document.getElementById('marketResult').innerHTML=`<div class="ok">✓ Morning stock saved: ${totalMorning} bags.</div>`;
-   return true;
- }catch(err){
-   if(!silent)alert("Save Morning error: "+err.message);
-   return false;
- }
-}
+function renderMarketResult(){const el=document.getElementById('marketResult'),mt=Object.values(inventoryMorning).reduce((a,b)=>a+Number(b||0),0);if(!mt){el.textContent="Morning and evening counts are needed.";return}if(inventoryStage==="morning"){el.innerHTML=`Morning stock: <b>${mt} bags</b> (${(mt*.5).toFixed(1)} kg).`;return}if(inventoryStage==="waiting"){el.innerHTML=`<div class="ok">Morning stock saved: <b>${mt} bags</b>.</div>`;return}let total=0;const rows=Object.keys(inventoryMorning).map(p=>{const am=Number(inventoryMorning[p]||0);if(!eveningCounted[p])return `<div>${p}</div><div>${am}</div><div>—</div><div><b>NOT COUNTED</b></div>`;const pm=Number(inventoryEvening[p]||0),sold=Math.max(0,am-pm);total+=sold;return `<div>${p}</div><div>${am}</div><div>${pm}</div><div><b>${sold}</b></div>`}).join('');el.innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${rows}</div><div class="item"><b>${inventoryStage==="finished"?"FINAL":"Current"}: ${total} bags sold = ${(total*.5).toFixed(1)} kg</b></div>`}
 
-function saveEveningDraft(){
- try{
-   const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
-   data.date=document.getElementById('marketDate').value;
-   data.location=document.getElementById('marketLocation').value;
-   data.morning={...inventoryMorning};
-   data.evening={...inventoryEvening};
-   data.mode='evening';
-   if(data.sold)delete data.sold;
-   localStorage.setItem(marketKey(),JSON.stringify(data));
- }catch(e){}
- updateLiveResult();
-}
+function finishMarket(){const miss=Object.keys(inventoryMorning).filter(p=>!eveningCounted[p]);if(miss.length)return alert("Evening count incomplete for: "+miss.join(", "));const sold={};Object.keys(inventoryMorning).forEach(p=>sold[p]=Math.max(0,Number(inventoryMorning[p]||0)-Number(inventoryEvening[p]||0)));inventoryStage="finished";localStorage.setItem(marketKey(),JSON.stringify({date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,stage:inventoryStage,morning:inventoryMorning,evening:inventoryEvening,eveningCounted,sold}));renderInventoryUI()}
+function clearInventoryDay(){if(!confirm("Reset this market day?"))return;localStorage.removeItem(marketKey());inventoryStage="morning";inventoryMorning={};inventoryEvening={};eveningCounted={};resetInventorySelection();renderInventoryUI()}
 
-function switchToEvening(){
- try{
-   // If a product is selected but not yet added, commit it exactly once.
-   if(inventoryMode==='morning' && inventoryProduct) commitPendingInventory();
+function celebrateReward(id,count){document.getElementById('celebrationCustomer').textContent=`Customer ${id} earned ${count} FREE BAG${count>1?'S':''}!`;document.getElementById('celebrationOverlay').classList.add('show');createFireworks();playRewardSound();setTimeout(hideCelebration,3400)}
+function hideCelebration(){const o=document.getElementById('celebrationOverlay');o.classList.remove('show');o.querySelectorAll('.particle').forEach(p=>p.remove())}
+function createFireworks(){const o=document.getElementById('celebrationOverlay'),colors=['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];[{x:'18%',y:'24%'},{x:'82%',y:'24%'},{x:'22%',y:'74%'},{x:'78%',y:'74%'}].forEach((b,idx)=>{for(let i=0;i<18;i++){const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];const a=Math.PI*2*i/18,d=70+Math.random()*85;p.style.setProperty('--dx',`${Math.cos(a)*d}px`);p.style.setProperty('--dy',`${Math.sin(a)*d}px`);o.appendChild(p)}})}
+async function playRewardSound(){if(!audioCtx||!soundEnabled)return;if(audioCtx.state==="suspended")await audioCtx.resume();const notes=[523.25,659.25,783.99,1046.5];notes.forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime+i*.13;o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.16,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.25);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+.26)})}
 
-   if(Object.keys(inventoryMorning).length===0){
-     const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
-     if(saved.morning)inventoryMorning={...saved.morning};
-   }
-   const totalMorning=Object.values(inventoryMorning).reduce((a,b)=>a+(Number(b)||0),0);
-   if(totalMorning===0){
-     alert("No morning stock found. Scan a coffee, choose quantity, and press Add to Morning Stock first.");
-     return;
-   }
-   if(!saveMorning(true))return;
-
-   inventoryMode='evening';
-   const data=JSON.parse(localStorage.getItem(marketKey())||'{}');
-   data.mode='evening';
-   data.morning={...inventoryMorning};
-   data.evening=data.evening||{};
-   localStorage.setItem(marketKey(),JSON.stringify(data));
-
-   setInventoryMode('evening');
-   document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">🌙 EVENING MODE STARTED. Morning saved: ${totalMorning} bags.</div>`;
- }catch(err){
-   alert("Start Evening error: "+err.message);
- }
-}
-
-function finishMarket(){
-  if(Object.keys(inventoryMorning).length===0){
-    const saved=JSON.parse(localStorage.getItem(marketKey())||'{}');
-    if(saved.morning) inventoryMorning=saved.morning;
-    if(saved.evening) inventoryEvening=saved.evening;
-    if(saved.eveningCounted) eveningCounted=saved.eveningCounted;
-  }
-  if(Object.keys(inventoryMorning).length===0) return alert("Morning stock is empty. Enter and save morning stock first.");
-  const missing=Object.keys(inventoryMorning).filter(p=>!eveningCounted[p]);
-  if(missing.length) return alert("Evening count is incomplete for: "+missing.join(", ")+"\n\nCount each coffee, or use SOLD OUT = 0 / NO SALES = SAME AS MORNING.");
-  const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
-  const sold={};
-  all.forEach(p=>sold[p]=Math.max(0,(Number(inventoryMorning[p])||0)-(Number(inventoryEvening[p])||0)));
-  const totalSold=Object.values(sold).reduce((a,b)=>a+b,0);
-  const data={date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,morning:inventoryMorning,evening:inventoryEvening,eveningCounted:eveningCounted,sold};
-  localStorage.setItem(marketKey(),JSON.stringify(data));
-  document.getElementById('marketResult').innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${sold[p]}</b></div>`).join('')}</div><div class="item"><b>FINAL: ${totalSold} bags sold = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
-}
-
-function clearInventoryDay(){
- if(!confirm("Clear today's morning and evening inventory?"))return;
- localStorage.removeItem(marketKey());
- inventoryMorning={};inventoryEvening={};eveningCounted={};inventoryProduct=null;inventoryQty=1;
- resetInventorySelection();
- setInventoryMode('morning');
- renderInventoryCurrent();
- document.getElementById('marketResult').textContent="Morning and evening counts are needed.";
-}
-
-function celebrateReward(customerId,count){
- document.getElementById('celebrationCustomer').textContent=`Customer ${customerId} earned ${count} FREE BAG${count>1?'S':''}!`;
- document.getElementById('celebrationOverlay').classList.add('show');createFireworks();playRewardSound();setTimeout(hideCelebration,3400);
-}
-function hideCelebration(){const o=document.getElementById('celebrationOverlay');o.classList.remove('show');o.querySelectorAll('.particle').forEach(p=>p.remove());}
-function createFireworks(){
- const o=document.getElementById('celebrationOverlay'),colors=['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];
- [{x:'18%',y:'24%'},{x:'82%',y:'24%'},{x:'22%',y:'74%'},{x:'78%',y:'74%'},{x:'50%',y:'18%'}].forEach((b,idx)=>{
-   for(let i=0;i<18;i++){const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];const a=Math.PI*2*i/18,d=70+Math.random()*85;p.style.setProperty('--dx',`${Math.cos(a)*d}px`);p.style.setProperty('--dy',`${Math.sin(a)*d}px`);o.appendChild(p);}
- });
-}
-async function playRewardSound(){
- if(!audioCtx||!soundEnabled)return;
- try{
-   if(audioCtx.state==="suspended")await audioCtx.resume();
-   const start=audioCtx.currentTime+.02,notes=[523.25,659.25,783.99,1046.5,1318.5];
-   notes.forEach((f,i)=>{const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),t=start+i*.13;osc.type=i<3?'triangle':'sine';osc.frequency.value=f;gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.16,t+.025);gain.gain.exponentialRampToValueAtTime(.0001,t+.28);osc.connect(gain).connect(audioCtx.destination);osc.start(t);osc.stop(t+.30);});
- }catch(e){}
-}
-
-function loadMarketDraft(){
- try{
-   const raw=localStorage.getItem(marketKey());
-   const saved=raw?JSON.parse(raw):{};
-   inventoryMorning=saved.morning||{};
-   inventoryEvening=saved.evening||{};
-   inventoryMode=(saved.mode==='evening'||saved.mode==='finished')?'evening':'morning';
-   setInventoryMode(inventoryMode);
-   if(saved.sold && saved.mode==='finished'){
-     const all=[...new Set([...Object.keys(inventoryMorning),...Object.keys(inventoryEvening)])];
-     const totalSold=Object.values(saved.sold).reduce((a,b)=>a+(Number(b)||0),0);
-     document.getElementById('marketResult').innerHTML=`<div class="summary-grid">
-       <div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>
-       ${all.map(p=>`<div>${p}</div><div>${inventoryMorning[p]||0}</div><div>${inventoryEvening[p]||0}</div><div><b>${saved.sold[p]||0}</b></div>`).join('')}
-       </div><div class="item"><b>Total sold: ${totalSold} bags = ${(totalSold*.5).toFixed(1)} kg</b></div>`;
-   }
- }catch(err){
-   inventoryMorning={};inventoryEvening={};eveningCounted={};inventoryMode='morning';
-   setInventoryMode('morning');
- }
-}
-
-(function init(){
- const today=new Date().toISOString().slice(0,10);
- document.getElementById('marketDate').value=today;
- document.getElementById('marketDate').addEventListener('change',loadMarketDraft);
- document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);
- loadMarketDraft();
- updateLiveResult();
-})();
+(function(){const today=new Date().toISOString().slice(0,10);document.getElementById('marketDate').value=today;document.getElementById('marketDate').addEventListener('change',loadMarketDraft);document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);loadMarketDraft()})();
 </script>
 </body>
 </html>
