@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v17</title>
+<title>Cafeat8 Market v18</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,11 +28,11 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v17</h1>
+<h1>☕ Cafeat8 Market v18</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
-  <div id="cloudStatus" class="warn">Checking cloud login…</div>
+  <div id="cloudStatus" class="warn">Checking cloud login…</div><div id="lastSyncStatus" class="small">Last cloud sync: —</div>
   <div id="cloudLoginBox">
     <input id="cloudEmail" type="email" placeholder="Your Cafeat8 email">
     <button class="full" onclick="sendMagicLink()">Send login link</button>
@@ -45,6 +45,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 <div class="card"><div class="tabs">
 <button id="tabSales" class="tab active" onclick="showPanel('sales')">Customer / Fidelity</button>
 <button id="tabInventory" class="tab" onclick="showPanel('inventory')">Market Inventory</button>
+<button id="tabReports" class="tab" onclick="showPanel('reports')">Reports</button>
 </div></div>
 
 <div id="salesPanel" class="panel active">
@@ -87,6 +88,18 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </div>
 </div>
 
+
+<div id="reportsPanel" class="panel">
+  <div class="card">
+    <h2>📊 Cafeat8 Reports</h2>
+    <div id="reportCloudStatus" class="muted">Sign in to cloud to see reports.</div>
+    <button class="full" onclick="loadReports()">Refresh reports</button>
+  </div>
+  <div class="card"><h2>Summary</h2><div id="reportSummary" class="muted">No report loaded yet.</div></div>
+  <div class="card"><h2>Recent markets</h2><div id="reportMarkets" class="muted">No report loaded yet.</div></div>
+  <div class="card"><h2>Customer loyalty overview</h2><div id="reportCustomers" class="muted">No report loaded yet.</div></div>
+</div>
+
 <div id="celebrationOverlay" onclick="hideCelebration()"><div class="celebration-card"><h2>🎉 Reward unlocked!</h2><div id="celebrationCustomer"></div><h2>1 FREE BAG earned ☕</h2></div></div>
 
 <script>
@@ -103,7 +116,16 @@ const key=id=>"cafeat8_customer_"+id;
 
 function getData(id){let d;try{d=JSON.parse(localStorage.getItem(key(id))||'null')}catch(e){}if(!d)d={paid:0,freeUsed:0,products:{},history:[]};return d}
 function saveData(id,d){localStorage.setItem(key(id),JSON.stringify(d))}
-function showPanel(name){document.getElementById('salesPanel').classList.toggle('active',name==='sales');document.getElementById('inventoryPanel').classList.toggle('active',name==='inventory');document.getElementById('tabSales').classList.toggle('active',name==='sales');document.getElementById('tabInventory').classList.toggle('active',name==='inventory');stopScanner()}
+function showPanel(name){
+  document.getElementById('salesPanel').classList.toggle('active',name==='sales');
+  document.getElementById('inventoryPanel').classList.toggle('active',name==='inventory');
+  document.getElementById('reportsPanel').classList.toggle('active',name==='reports');
+  document.getElementById('tabSales').classList.toggle('active',name==='sales');
+  document.getElementById('tabInventory').classList.toggle('active',name==='inventory');
+  document.getElementById('tabReports').classList.toggle('active',name==='reports');
+  stopScanner();
+  if(name==='reports') loadReports();
+}
 async function enableSound(){const C=window.AudioContext||window.webkitAudioContext;if(!audioCtx)audioCtx=new C();if(audioCtx.state==="suspended")await audioCtx.resume();soundEnabled=true;document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';playTestSound()}
 function playTestSound(){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=660;g.gain.value=.08;o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.15)}
 
@@ -306,6 +328,72 @@ function cloudNotice(text){
   if(cloudUser && el) el.innerHTML=`<div class="ok">✅ ${text}</div>`;
 }
 
+
+function markCloudSync(){
+  const el=document.getElementById("lastSyncStatus");
+  if(!el) return;
+  el.textContent="Last cloud sync: "+new Date().toLocaleString();
+}
+
+async function loadReports(){
+  const cloudMsg=document.getElementById("reportCloudStatus");
+  const summary=document.getElementById("reportSummary");
+  const marketsEl=document.getElementById("reportMarkets");
+  const customersEl=document.getElementById("reportCustomers");
+  if(!cloudUser){
+    cloudMsg.innerHTML='<div class="warn">Cloud login required to view reports.</div>';
+    summary.textContent="Sign in to cloud first.";
+    marketsEl.textContent="Sign in to cloud first.";
+    customersEl.textContent="Sign in to cloud first.";
+    return;
+  }
+  cloudMsg.innerHTML='<div class="ok">Loading cloud reports…</div>';
+  try{
+    const [{data:customers,error:ce},{data:days,error:de}] = await Promise.all([
+      supabaseClient.from("customers").select("customer_id,paid_bags,free_bags_used,updated_at").order("updated_at",{ascending:false}),
+      supabaseClient.from("market_days").select("id,market_date,location,status,updated_at").order("market_date",{ascending:false}).limit(30)
+    ]);
+    if(ce) throw ce;
+    if(de) throw de;
+    const dayIds=(days||[]).map(d=>d.id);
+    let inventoryRows=[];
+    if(dayIds.length){
+      const {data:inv,error:ie}=await supabaseClient.from("market_inventory").select("market_day_id,product,morning_bags,evening_bags,sold_bags").in("market_day_id",dayIds);
+      if(ie) throw ie;
+      inventoryRows=inv||[];
+    }
+    const totalPaid=(customers||[]).reduce((s,c)=>s+Number(c.paid_bags||0),0);
+    const totalFree=(customers||[]).reduce((s,c)=>s+Number(c.free_bags_used||0),0);
+    const totalSold=inventoryRows.reduce((s,r)=>s+Number(r.sold_bags||0),0);
+    const finishedDays=(days||[]).filter(d=>d.status==="finished").length;
+    summary.innerHTML=`
+      <div class="item"><b>Customers:</b> ${(customers||[]).length}</div>
+      <div class="item"><b>Total paid loyalty bags:</b> ${totalPaid}</div>
+      <div class="item"><b>Free bags used:</b> ${totalFree}</div>
+      <div class="item"><b>Finished market days:</b> ${finishedDays}</div>
+      <div class="item"><b>Total market bags sold:</b> ${totalSold}</div>
+      <div class="item"><b>Total market kg sold:</b> ${(totalSold*0.5).toFixed(1)} kg</div>`;
+    const rowsByDay={};
+    inventoryRows.forEach(r=>{(rowsByDay[r.market_day_id]||(rowsByDay[r.market_day_id]=[])).push(r)});
+    marketsEl.innerHTML=(days||[]).length ? (days||[]).map(d=>{
+      const rows=rowsByDay[d.id]||[];
+      const sold=rows.reduce((s,r)=>s+Number(r.sold_bags||0),0);
+      const details=rows.filter(r=>Number(r.sold_bags||0)>0).map(r=>`${r.product}: ${Number(r.sold_bags||0)}`).join(" · ");
+      return `<div class="item"><b>${d.market_date} — ${d.location}</b><br>${sold} bags sold = ${(sold*0.5).toFixed(1)} kg${details?`<div class="small">${details}</div>`:""}<div class="small">Status: ${d.status}</div></div>`;
+    }).join("") : "No market days saved yet.";
+    const topCustomers=[...(customers||[])].sort((a,b)=>Number(b.paid_bags||0)-Number(a.paid_bags||0)).slice(0,20);
+    customersEl.innerHTML=topCustomers.length ? topCustomers.map(c=>{
+      const available=Math.max(0,Math.floor(Number(c.paid_bags||0)/10)-Number(c.free_bags_used||0));
+      return `<div class="item">Customer <b>${c.customer_id}</b> — ${Number(c.paid_bags||0)} paid bags<div class="small">Free used: ${Number(c.free_bags_used||0)} · Free available: ${available}</div></div>`;
+    }).join("") : "No customers saved yet.";
+    cloudMsg.innerHTML='<div class="ok">✅ Reports loaded from cloud.</div>';
+    markCloudSync();
+  }catch(e){
+    console.error(e);
+    cloudMsg.innerHTML=`<div class="warn">Could not load reports: ${e.message}</div>`;
+  }
+}
+
 async function selectCustomer(){
   const id=document.getElementById('customer').value.trim();
   if(!id) return alert("Enter customer number first");
@@ -330,7 +418,7 @@ async function selectCustomer(){
     if(cloudUser){
       try{
         await saveCustomerToCloud(id,d,[]);
-        cloudNotice("Cloud connected — new customer created.");
+        cloudNotice("Cloud connected — new customer created."); markCloudSync();
       }catch(e){ console.error(e); }
     }
   }
@@ -366,7 +454,7 @@ async function finishSale(){
         type:"paid",product,quantity
       }));
       await saveCustomerToCloud(currentCustomer,d,tx);
-      cloudNotice("Sale saved to cloud.");
+      cloudNotice("Sale saved to cloud."); markCloudSync();
     }catch(e){
       console.error(e);
       setCloudUI("Sale saved locally, but cloud sync failed.","warn");
@@ -394,7 +482,7 @@ async function redeemReward(){
       await saveCustomerToCloud(currentCustomer,d,[{
         type:"free",product,quantity:1
       }]);
-      cloudNotice("Free bag saved to cloud.");
+      cloudNotice("Free bag saved to cloud."); markCloudSync();
     }catch(e){
       console.error(e);
       setCloudUI("Free bag saved locally, but cloud sync failed.","warn");
@@ -435,7 +523,7 @@ async function loadMarketDraft(){
       const found=await loadMarketFromCloud();
       if(found){
         renderInventoryUI();
-        cloudNotice("Market data loaded from cloud.");
+        cloudNotice("Market data loaded from cloud."); markCloudSync();
         return;
       }
     }catch(e){
@@ -556,7 +644,7 @@ async function finishMarket(){
   if(cloudUser){
     try{
       await syncMarketToCloud();
-      cloudNotice("Final market result saved to cloud.");
+      cloudNotice("Final market result saved to cloud."); markCloudSync();
     }catch(e){
       console.error(e);
       setCloudUI("Final result saved locally, but cloud sync failed.","warn");
@@ -599,7 +687,7 @@ async function clearInventoryDay(){
   eveningCounted={};
   resetInventorySelection();
   renderInventoryUI();
-  if(cloudUser) cloudNotice("Market day reset in cloud.");
+  if(cloudUser) cloudNotice("Market day reset in cloud."); markCloudSync();
 }
 
 function celebrateReward(id,count){document.getElementById('celebrationCustomer').textContent=`Customer ${id} earned ${count} FREE BAG${count>1?'S':''}!`;document.getElementById('celebrationOverlay').classList.add('show');createFireworks();playRewardSound();setTimeout(hideCelebration,3400)}
@@ -621,6 +709,7 @@ async function playRewardSound(){if(!audioCtx||!soundEnabled)return;if(audioCtx.
     if(cloudUser){
       await loadMarketDraft();
       if(currentCustomer) await selectCustomer();
+      if(document.getElementById("reportsPanel").classList.contains("active")) await loadReports();
     }
   });
 
