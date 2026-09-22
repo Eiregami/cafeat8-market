@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v16</title>
+<title>Cafeat8 Market v17</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
 .wrap{max-width:760px;margin:auto;padding:18px}.card{background:#fff;border-radius:20px;padding:16px;margin:14px 0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
@@ -27,7 +28,19 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v16</h1>
+<h1>☕ Cafeat8 Market v17</h1>
+
+<div class="card" id="cloudCard">
+  <h2>☁️ Cloud database</h2>
+  <div id="cloudStatus" class="warn">Checking cloud login…</div>
+  <div id="cloudLoginBox">
+    <input id="cloudEmail" type="email" placeholder="Your Cafeat8 email">
+    <button class="full" onclick="sendMagicLink()">Send login link</button>
+    <div class="small">The app still works locally if you are offline. Cloud sync starts after login.</div>
+  </div>
+  <button id="cloudSignOutBtn" class="secondary full" style="display:none" onclick="cloudSignOut()">Sign out from cloud</button>
+</div>
+
 
 <div class="card"><div class="tabs">
 <button id="tabSales" class="tab active" onclick="showPanel('sales')">Customer / Fidelity</button>
@@ -79,6 +92,13 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 <script>
 let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0,audioCtx=null,soundEnabled=false;
 let inventoryStage="morning",inventoryProduct=null,inventoryQty=1,inventoryMorning={},inventoryEvening={},eveningCounted={};
+
+const SUPABASE_URL="https://uytfdapgkvwatwycdywe.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_UTAZH9KAtOoDgVjUAhLROw_5GWkFLJ8";
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
+  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+});
+let cloudUser=null;
 const key=id=>"cafeat8_customer_"+id;
 
 function getData(id){let d;try{d=JSON.parse(localStorage.getItem(key(id))||'null')}catch(e){}if(!d)d={paid:0,freeUsed:0,products:{},history:[]};return d}
@@ -87,7 +107,235 @@ function showPanel(name){document.getElementById('salesPanel').classList.toggle(
 async function enableSound(){const C=window.AudioContext||window.webkitAudioContext;if(!audioCtx)audioCtx=new C();if(audioCtx.state==="suspended")await audioCtx.resume();soundEnabled=true;document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';playTestSound()}
 function playTestSound(){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=660;g.gain.value=.08;o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.15)}
 
-function selectCustomer(){const id=document.getElementById('customer').value.trim();if(!id)return alert("Enter customer number first");if(currentCustomer&&currentCustomer!==id)purchase=[];currentCustomer=id;if(!localStorage.getItem(key(id)))saveData(id,getData(id));renderCustomer()}
+
+function setCloudUI(message,kind="warn"){
+  const el=document.getElementById("cloudStatus");
+  if(el) el.innerHTML=`<div class="${kind}">${message}</div>`;
+  const login=document.getElementById("cloudLoginBox");
+  const out=document.getElementById("cloudSignOutBtn");
+  if(login) login.style.display=cloudUser?"none":"block";
+  if(out) out.style.display=cloudUser?"block":"none";
+}
+
+async function refreshCloudSession(){
+  try{
+    const {data,error}=await supabaseClient.auth.getSession();
+    if(error) throw error;
+    cloudUser=data.session?.user||null;
+    if(cloudUser){
+      setCloudUI(`✅ Cloud connected as ${cloudUser.email}`,"ok");
+    }else{
+      setCloudUI("Cloud not signed in. Local storage is still active.","warn");
+    }
+  }catch(e){
+    cloudUser=null;
+    setCloudUI("Cloud connection unavailable. Using local storage.","warn");
+  }
+}
+
+async function sendMagicLink(){
+  const email=(document.getElementById("cloudEmail").value||"").trim();
+  if(!email) return alert("Enter your email first.");
+  const redirectTo="https://eiregami.github.io/cafeat8-market/";
+  setCloudUI("Sending login link…","warn");
+  const {error}=await supabaseClient.auth.signInWithOtp({
+    email,
+    options:{emailRedirectTo:redirectTo,shouldCreateUser:false}
+  });
+  if(error){
+    setCloudUI("Could not send login link: "+error.message,"warn");
+    return;
+  }
+  setCloudUI("📧 Login link sent. Open the email on this device and tap the link.","ok");
+}
+
+async function cloudSignOut(){
+  await supabaseClient.auth.signOut();
+  cloudUser=null;
+  setCloudUI("Signed out. Local storage remains available.","warn");
+}
+
+async function loadCustomerFromCloud(id){
+  if(!cloudUser) return null;
+
+  const {data:customer,error:e1}=await supabaseClient
+    .from("customers")
+    .select("customer_id,paid_bags,free_bags_used")
+    .eq("customer_id",id)
+    .maybeSingle();
+
+  if(e1) throw e1;
+  if(!customer) return null;
+
+  const {data:tx,error:e2}=await supabaseClient
+    .from("customer_transactions")
+    .select("transaction_type,product,quantity,created_at")
+    .eq("customer_id",id)
+    .order("created_at",{ascending:true});
+
+  if(e2) throw e2;
+
+  const d={paid:customer.paid_bags||0,freeUsed:customer.free_bags_used||0,products:{},history:[]};
+  (tx||[]).forEach(r=>{
+    const q=Number(r.quantity||1);
+    if(r.transaction_type==="paid" && r.product){
+      d.products[r.product]=(d.products[r.product]||0)+q;
+    }
+    d.history.push({
+      date:r.created_at,
+      type:r.transaction_type,
+      products:r.product?Array(q).fill(r.product):[]
+    });
+  });
+  return d;
+}
+
+async function saveCustomerToCloud(id,d,newTransactions=[]){
+  if(!cloudUser) return;
+  const {error:e1}=await supabaseClient.from("customers").upsert({
+    customer_id:id,
+    paid_bags:d.paid,
+    free_bags_used:d.freeUsed,
+    updated_at:new Date().toISOString()
+  },{onConflict:"customer_id"});
+  if(e1) throw e1;
+
+  if(newTransactions.length){
+    const rows=newTransactions.map(t=>({
+      customer_id:id,
+      transaction_type:t.type,
+      product:t.product||null,
+      quantity:t.quantity||1
+    }));
+    const {error:e2}=await supabaseClient.from("customer_transactions").insert(rows);
+    if(e2) throw e2;
+  }
+}
+
+async function syncMarketToCloud(){
+  if(!cloudUser) return;
+
+  const marketDate=document.getElementById("marketDate").value;
+  const location=document.getElementById("marketLocation").value;
+  if(!marketDate || !location) return;
+
+  const status=inventoryStage==="finished"?"finished":inventoryStage;
+  const {data:day,error:e1}=await supabaseClient
+    .from("market_days")
+    .upsert({
+      market_date:marketDate,
+      location,
+      status,
+      updated_at:new Date().toISOString()
+    },{onConflict:"market_date,location"})
+    .select("id")
+    .single();
+
+  if(e1) throw e1;
+
+  const products=[...new Set([
+    ...Object.keys(inventoryMorning),
+    ...Object.keys(inventoryEvening)
+  ])];
+
+  if(!products.length) return;
+
+  const rows=products.map(product=>{
+    const morning=Number(inventoryMorning[product]||0);
+    const counted=!!eveningCounted[product];
+    const evening=counted?Number(inventoryEvening[product]||0):null;
+    return {
+      market_day_id:day.id,
+      product,
+      morning_bags:morning,
+      evening_bags:evening,
+      sold_bags:counted?Math.max(0,morning-evening):null,
+      updated_at:new Date().toISOString()
+    };
+  });
+
+  const {error:e2}=await supabaseClient
+    .from("market_inventory")
+    .upsert(rows,{onConflict:"market_day_id,product"});
+
+  if(e2) throw e2;
+}
+
+async function loadMarketFromCloud(){
+  if(!cloudUser) return false;
+
+  const marketDate=document.getElementById("marketDate").value;
+  const location=document.getElementById("marketLocation").value;
+
+  const {data:day,error:e1}=await supabaseClient
+    .from("market_days")
+    .select("id,status")
+    .eq("market_date",marketDate)
+    .eq("location",location)
+    .maybeSingle();
+
+  if(e1) throw e1;
+  if(!day) return false;
+
+  const {data:rows,error:e2}=await supabaseClient
+    .from("market_inventory")
+    .select("product,morning_bags,evening_bags,sold_bags")
+    .eq("market_day_id",day.id);
+
+  if(e2) throw e2;
+
+  inventoryMorning={};
+  inventoryEvening={};
+  eveningCounted={};
+
+  (rows||[]).forEach(r=>{
+    inventoryMorning[r.product]=Number(r.morning_bags||0);
+    if(r.evening_bags!==null){
+      inventoryEvening[r.product]=Number(r.evening_bags||0);
+      eveningCounted[r.product]=true;
+    }
+  });
+
+  inventoryStage=day.status||"morning";
+  saveMarketDraftLocalOnly();
+  return true;
+}
+
+function cloudNotice(text){
+  const el=document.getElementById("cloudStatus");
+  if(cloudUser && el) el.innerHTML=`<div class="ok">✅ ${text}</div>`;
+}
+
+async function selectCustomer(){
+  const id=document.getElementById('customer').value.trim();
+  if(!id) return alert("Enter customer number first");
+  if(currentCustomer&&currentCustomer!==id) purchase=[];
+  currentCustomer=id;
+
+  let d=null;
+  if(cloudUser){
+    try{
+      d=await loadCustomerFromCloud(id);
+    }catch(e){
+      console.error(e);
+      setCloudUI("Cloud read failed. Using local copy.","warn");
+    }
+  }
+
+  if(d){
+    saveData(id,d);
+  }else if(!localStorage.getItem(key(id))){
+    d=getData(id);
+    saveData(id,d);
+    if(cloudUser){
+      try{
+        await saveCustomerToCloud(id,d,[]);
+        cloudNotice("Cloud connected — new customer created.");
+      }catch(e){ console.error(e); }
+    }
+  }
+  renderCustomer();
+}
 function clearCustomer(){currentCustomer=null;purchase=[];document.getElementById('customer').value="";document.getElementById('custStatus').textContent="No customer selected";document.getElementById('loyalty').textContent="0";document.getElementById('rewardStatus').textContent="No free bag available";document.getElementById('history').textContent="Select a customer";renderPurchase()}
 function renderCustomer(){if(!currentCustomer)return;const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div>${d.paid} paid bags total</div>`;document.getElementById('loyalty').textContent=progress;document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";const e=Object.entries(d.products);document.getElementById('history').innerHTML=e.length?e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";renderPurchase()}
 
@@ -99,13 +347,111 @@ function stopScanner(){if(controls){try{controls.stop()}catch(e){}controls=null}
 
 function startSalesScanner(){if(!currentCustomer)return alert("Open a customer first");startScannerOn("videoSales",(text)=>{const p=productFromText(text);if(!p)return;purchase.push(p);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${p} added</div>`;renderPurchase();stopScanner()},"scanStatus")}
 function renderPurchase(){const el=document.getElementById('purchaseList');if(!purchase.length){el.textContent="No bags scanned";return}const c={};purchase.forEach(p=>c[p]=(c[p]||0)+1);el.innerHTML=Object.entries(c).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b></div>`}
-function finishSale(){if(!currentCustomer||!purchase.length)return alert("Open customer and scan coffee first");const d=getData(currentCustomer),before=Math.floor(d.paid/10);d.paid+=purchase.length;purchase.forEach(p=>d.products[p]=(d.products[p]||0)+1);d.history.push({date:new Date().toISOString(),type:"paid",products:[...purchase]});saveData(currentCustomer,d);const nr=Math.floor(d.paid/10)-before;purchase=[];renderCustomer();if(nr>0)celebrateReward(currentCustomer,nr)}
-function redeemReward(){if(!currentCustomer||purchase.length!==1)return alert("Open customer and scan exactly one free bag");const d=getData(currentCustomer),a=Math.floor(d.paid/10)-d.freeUsed;if(a<1)return alert("No free bag available");d.freeUsed++;d.history.push({date:new Date().toISOString(),type:"free",products:[...purchase]});saveData(currentCustomer,d);purchase=[];renderCustomer()}
+async function finishSale(){
+  if(!currentCustomer||!purchase.length) return alert("Open customer and scan coffee first");
+  const d=getData(currentCustomer);
+  const before=Math.floor(d.paid/10);
+  const soldProducts=[...purchase];
+
+  d.paid+=soldProducts.length;
+  soldProducts.forEach(p=>d.products[p]=(d.products[p]||0)+1);
+  d.history.push({date:new Date().toISOString(),type:"paid",products:soldProducts});
+  saveData(currentCustomer,d);
+
+  if(cloudUser){
+    try{
+      const counts={};
+      soldProducts.forEach(p=>counts[p]=(counts[p]||0)+1);
+      const tx=Object.entries(counts).map(([product,quantity])=>({
+        type:"paid",product,quantity
+      }));
+      await saveCustomerToCloud(currentCustomer,d,tx);
+      cloudNotice("Sale saved to cloud.");
+    }catch(e){
+      console.error(e);
+      setCloudUI("Sale saved locally, but cloud sync failed.","warn");
+    }
+  }
+
+  const nr=Math.floor(d.paid/10)-before;
+  purchase=[];
+  renderCustomer();
+  if(nr>0) celebrateReward(currentCustomer,nr);
+}
+async function redeemReward(){
+  if(!currentCustomer||purchase.length!==1) return alert("Open customer and scan exactly one free bag");
+  const d=getData(currentCustomer);
+  const a=Math.floor(d.paid/10)-d.freeUsed;
+  if(a<1) return alert("No free bag available");
+
+  const product=purchase[0];
+  d.freeUsed++;
+  d.history.push({date:new Date().toISOString(),type:"free",products:[product]});
+  saveData(currentCustomer,d);
+
+  if(cloudUser){
+    try{
+      await saveCustomerToCloud(currentCustomer,d,[{
+        type:"free",product,quantity:1
+      }]);
+      cloudNotice("Free bag saved to cloud.");
+    }catch(e){
+      console.error(e);
+      setCloudUI("Free bag saved locally, but cloud sync failed.","warn");
+    }
+  }
+
+  purchase=[];
+  renderCustomer();
+}
 function clearPurchase(){purchase=[];renderPurchase()}
 
 function marketKey(){const d=document.getElementById('marketDate').value||new Date().toISOString().slice(0,10),l=document.getElementById('marketLocation').value;return `cafeat8_market_${d}_${l}`}
-function saveMarketDraft(){localStorage.setItem(marketKey(),JSON.stringify({date:document.getElementById('marketDate').value,location:document.getElementById('marketLocation').value,stage:inventoryStage,morning:inventoryMorning,evening:inventoryEvening,eveningCounted}))}
-function loadMarketDraft(){let s={};try{s=JSON.parse(localStorage.getItem(marketKey())||'{}')}catch(e){}inventoryMorning=s.morning||{};inventoryEvening=s.evening||{};eveningCounted=s.eveningCounted||{};inventoryStage=s.stage||"morning";renderInventoryUI()}
+function saveMarketDraftLocalOnly(){
+  localStorage.setItem(marketKey(),JSON.stringify({
+    date:document.getElementById('marketDate').value,
+    location:document.getElementById('marketLocation').value,
+    stage:inventoryStage,
+    morning:inventoryMorning,
+    evening:inventoryEvening,
+    eveningCounted
+  }));
+}
+
+function saveMarketDraft(){
+  saveMarketDraftLocalOnly();
+  if(cloudUser){
+    syncMarketToCloud()
+      .then(()=>cloudNotice("Market data synced to cloud."))
+      .catch(e=>{
+        console.error(e);
+        setCloudUI("Market saved locally, but cloud sync failed.","warn");
+      });
+  }
+}
+async function loadMarketDraft(){
+  if(cloudUser){
+    try{
+      const found=await loadMarketFromCloud();
+      if(found){
+        renderInventoryUI();
+        cloudNotice("Market data loaded from cloud.");
+        return;
+      }
+    }catch(e){
+      console.error(e);
+      setCloudUI("Could not load market from cloud. Using local copy.","warn");
+    }
+  }
+
+  let s={};
+  try{s=JSON.parse(localStorage.getItem(marketKey())||'{}')}catch(e){}
+  inventoryMorning=s.morning||{};
+  inventoryEvening=s.evening||{};
+  eveningCounted=s.eveningCounted||{};
+  inventoryStage=s.stage||"morning";
+  renderInventoryUI();
+}
 function startInventoryScanner(){if(inventoryStage==="waiting")return alert("Press START EVENING COUNT later.");if(inventoryStage==="finished")return alert("Market already finished.");startScannerOn("videoInventory",(text)=>{const p=productFromText(text);if(!p)return;inventoryProduct=p;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent=p;document.getElementById('inventoryQty').textContent=inventoryQty;document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${p} selected — quantity ${inventoryQty}. You can change it, then press ADD, or simply use SAVE MORNING / FINISH MARKET.</div>`;stopScanner()},"inventoryScanStatus")}
 function changeQty(d){const min=inventoryStage==="evening"?0:1;inventoryQty=Math.max(min,inventoryQty+d);document.getElementById('inventoryQty').textContent=inventoryQty}
 function resetInventorySelection(){inventoryProduct=null;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent=inventoryQty}
@@ -172,7 +518,7 @@ function renderInventoryCurrent(){const el=document.getElementById('inventoryCur
 
 function renderMarketResult(){const el=document.getElementById('marketResult'),mt=Object.values(inventoryMorning).reduce((a,b)=>a+Number(b||0),0);if(!mt){el.textContent="Morning and evening counts are needed.";return}if(inventoryStage==="morning"){el.innerHTML=`Morning stock: <b>${mt} bags</b> (${(mt*.5).toFixed(1)} kg).`;return}if(inventoryStage==="waiting"){el.innerHTML=`<div class="ok">Morning stock saved: <b>${mt} bags</b>.</div>`;return}let total=0;const rows=Object.keys(inventoryMorning).map(p=>{const am=Number(inventoryMorning[p]||0);if(!eveningCounted[p])return `<div>${p}</div><div>${am}</div><div>—</div><div><b>NOT COUNTED</b></div>`;const pm=Number(inventoryEvening[p]||0),sold=Math.max(0,am-pm);total+=sold;return `<div>${p}</div><div>${am}</div><div>${pm}</div><div><b>${sold}</b></div>`}).join('');el.innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${rows}</div><div class="item"><b>${inventoryStage==="finished"?"FINAL":"Current"}: ${total} bags sold = ${(total*.5).toFixed(1)} kg</b></div>`}
 
-function finishMarket(){
+async function finishMarket(){
   if(inventoryStage==="evening" && inventoryProduct){
     commitPendingInventory();
   }
@@ -206,16 +552,80 @@ function finishMarket(){
       sold
     })
   );
+
+  if(cloudUser){
+    try{
+      await syncMarketToCloud();
+      cloudNotice("Final market result saved to cloud.");
+    }catch(e){
+      console.error(e);
+      setCloudUI("Final result saved locally, but cloud sync failed.","warn");
+    }
+  }
+
   renderInventoryUI();
 }
-function clearInventoryDay(){if(!confirm("Reset this market day?"))return;localStorage.removeItem(marketKey());inventoryStage="morning";inventoryMorning={};inventoryEvening={};eveningCounted={};resetInventorySelection();renderInventoryUI()}
+async function clearInventoryDay(){
+  if(!confirm("Reset this market day?")) return;
+
+  if(cloudUser){
+    try{
+      const marketDate=document.getElementById("marketDate").value;
+      const location=document.getElementById("marketLocation").value;
+      const {data:day,error}=await supabaseClient
+        .from("market_days")
+        .select("id")
+        .eq("market_date",marketDate)
+        .eq("location",location)
+        .maybeSingle();
+      if(error) throw error;
+      if(day){
+        const {error:delErr}=await supabaseClient
+          .from("market_days")
+          .delete()
+          .eq("id",day.id);
+        if(delErr) throw delErr;
+      }
+    }catch(e){
+      console.error(e);
+      if(!confirm("Cloud reset failed. Clear the local copy anyway?")) return;
+    }
+  }
+
+  localStorage.removeItem(marketKey());
+  inventoryStage="morning";
+  inventoryMorning={};
+  inventoryEvening={};
+  eveningCounted={};
+  resetInventorySelection();
+  renderInventoryUI();
+  if(cloudUser) cloudNotice("Market day reset in cloud.");
+}
 
 function celebrateReward(id,count){document.getElementById('celebrationCustomer').textContent=`Customer ${id} earned ${count} FREE BAG${count>1?'S':''}!`;document.getElementById('celebrationOverlay').classList.add('show');createFireworks();playRewardSound();setTimeout(hideCelebration,3400)}
 function hideCelebration(){const o=document.getElementById('celebrationOverlay');o.classList.remove('show');o.querySelectorAll('.particle').forEach(p=>p.remove())}
 function createFireworks(){const o=document.getElementById('celebrationOverlay'),colors=['#ff4d4f','#ffa940','#36cfc9','#73d13d','#9254de','#ffd666','#40a9ff','#eb2f96'];[{x:'18%',y:'24%'},{x:'82%',y:'24%'},{x:'22%',y:'74%'},{x:'78%',y:'74%'}].forEach((b,idx)=>{for(let i=0;i<18;i++){const p=document.createElement('div');p.className='particle';p.style.left=b.x;p.style.top=b.y;p.style.background=colors[(i+idx)%colors.length];const a=Math.PI*2*i/18,d=70+Math.random()*85;p.style.setProperty('--dx',`${Math.cos(a)*d}px`);p.style.setProperty('--dy',`${Math.sin(a)*d}px`);o.appendChild(p)}})}
 async function playRewardSound(){if(!audioCtx||!soundEnabled)return;if(audioCtx.state==="suspended")await audioCtx.resume();const notes=[523.25,659.25,783.99,1046.5];notes.forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime+i*.13;o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.16,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.25);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+.26)})}
 
-(function(){const today=new Date().toISOString().slice(0,10);document.getElementById('marketDate').value=today;document.getElementById('marketDate').addEventListener('change',loadMarketDraft);document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);loadMarketDraft()})();
+(async function(){
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('marketDate').value=today;
+  document.getElementById('marketDate').addEventListener('change',loadMarketDraft);
+  document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);
+
+  await refreshCloudSession();
+
+  supabaseClient.auth.onAuthStateChange(async(event,session)=>{
+    cloudUser=session?.user||null;
+    await refreshCloudSession();
+    if(cloudUser){
+      await loadMarketDraft();
+      if(currentCustomer) await selectCustomer();
+    }
+  });
+
+  await loadMarketDraft();
+})();
 </script>
 </body>
 </html>
