@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v22</title>
+<title>Cafeat8 Market v23</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,7 +28,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v22</h1>
+<h1>☕ Cafeat8 Market v23</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
@@ -619,22 +619,51 @@ async function saveCustomerProfile(){
   saveData(currentCustomer,d);
 
   const status=document.getElementById("customerProfileStatus");
-  status.textContent="Saved locally.";
+  status.dataset.keepMessage="1";
+  status.textContent="Saved locally. Saving to cloud…";
 
-  if(cloudUser){
-    try{
-      await saveCustomerToCloud(currentCustomer,d,[]);
-      status.innerHTML='<div class="ok">✅ Customer information saved to cloud.</div>';
-      markCloudSync();
-    }catch(e){
-      console.error(e);
-      status.innerHTML='<div class="warn">Saved locally, but cloud update failed.</div>';
-    }
-  }else{
+  if(!cloudUser){
     status.innerHTML='<div class="warn">Saved locally. Sign in to cloud to sync it.</div>';
+    return;
+  }
+
+  try{
+    await saveCustomerToCloud(currentCustomer,d,[]);
+
+    // Read the row back from Supabase to verify that the cloud really received it.
+    const {data:check,error:checkError}=await supabaseClient
+      .from("customers")
+      .select("customer_id,name,phone,email,notes,updated_at")
+      .eq("customer_id",currentCustomer)
+      .single();
+
+    if(checkError) throw checkError;
+
+    status.innerHTML=
+      `<div class="ok">✅ SAVED TO SUPABASE<br>`+
+      `Customer ${check.customer_id}`+
+      `${check.name?` — ${check.name}`:""}`+
+      `</div>`;
+
+    markCloudSync();
+
+    // Keep local copy equal to verified cloud values.
+    d.name=check.name||"";
+    d.phone=check.phone||"";
+    d.email=check.email||"";
+    d.notes=check.notes||"";
+    saveData(currentCustomer,d);
+
+  }catch(e){
+    console.error(e);
+    status.innerHTML=
+      `<div class="warn">⚠️ Saved locally, but Supabase did not confirm the update.<br>${e.message}</div>`;
   }
 
   renderCustomer();
+
+  // Keep the result message visible after render.
+  status.dataset.keepMessage="1";
 }
 
 function renderCustomer(){
@@ -655,7 +684,7 @@ function renderCustomer(){
   document.getElementById('customerPhone').value=d.phone||"";
   document.getElementById('customerEmail').value=d.email||"";
   document.getElementById('customerNotes').value=d.notes||"";
-  document.getElementById('customerProfileStatus').textContent="Customer information loaded.";
+  if(!document.getElementById('customerProfileStatus').dataset.keepMessage){document.getElementById('customerProfileStatus').textContent="Customer information loaded.";document.getElementById('customerProfileStatus').dataset.keepMessage="";}
 
   const e=Object.entries(d.products);
   document.getElementById('history').innerHTML=e.length
