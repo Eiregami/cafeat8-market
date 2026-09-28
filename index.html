@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v23</title>
+<title>Cafeat8 Market v24</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,7 +28,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v23</h1>
+<h1>☕ Cafeat8 Market v24</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
@@ -85,7 +85,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 <video id="videoSales" playsinline muted></video><div id="scanStatus" class="muted">Ready to scan.</div></div>
 <div class="card"><h2>Current purchase</h2><div id="purchaseList" class="muted">No bags scanned</div>
 <div class="row"><button onclick="finishSale()">Finish paid sale</button><button class="reward" onclick="redeemReward()">Use free bag</button><button class="secondary" onclick="clearPurchase()">Clear purchase</button></div></div>
-<div class="card"><h2>Customer history</h2><div id="history" class="muted">Select a customer</div></div>
+<div class="card"><h2>Previous purchases</h2><div id="history" class="muted">Select a customer</div></div>
 </div>
 
 <div id="inventoryPanel" class="panel">
@@ -684,14 +684,79 @@ function renderCustomer(){
   document.getElementById('customerPhone').value=d.phone||"";
   document.getElementById('customerEmail').value=d.email||"";
   document.getElementById('customerNotes').value=d.notes||"";
-  if(!document.getElementById('customerProfileStatus').dataset.keepMessage){document.getElementById('customerProfileStatus').textContent="Customer information loaded.";document.getElementById('customerProfileStatus').dataset.keepMessage="";}
 
-  const e=Object.entries(d.products);
-  document.getElementById('history').innerHTML=e.length
-    ? e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')
-      +`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`
-    : "No purchases yet";
+  if(!document.getElementById('customerProfileStatus').dataset.keepMessage){
+    document.getElementById('customerProfileStatus').textContent="Customer information loaded.";
+    document.getElementById('customerProfileStatus').dataset.keepMessage="";
+  }
 
+  const historyEl=document.getElementById('history');
+
+  const productEntries=Object.entries(d.products||{})
+    .sort((a,b)=>Number(b[1])-Number(a[1]));
+
+  const mostBought=productEntries.length
+    ? `${productEntries[0][0]} (${productEntries[0][1]} bag${Number(productEntries[0][1])===1?'':'s'})`
+    : "—";
+
+  const history=Array.isArray(d.history)?[...d.history]:[];
+
+  history.sort((a,b)=>{
+    const da=new Date(a.date||0).getTime();
+    const db=new Date(b.date||0).getTime();
+    return db-da;
+  });
+
+  let htmlOut=`
+    <div class="ok" style="margin-bottom:10px">
+      <b>Most bought:</b> ${mostBought}<br>
+      <b>Total paid bags:</b> ${d.paid}<br>
+      <b>Free bags used:</b> ${d.freeUsed}
+    </div>`;
+
+  if(!history.length){
+    htmlOut+=`<div class="muted">No purchase history yet.</div>`;
+    historyEl.innerHTML=htmlOut;
+    renderPurchase();
+    return;
+  }
+
+  history.slice(0,30).forEach(entry=>{
+    let dateText="Unknown date";
+    if(entry.date){
+      const dt=new Date(entry.date);
+      if(!isNaN(dt.getTime())){
+        dateText=dt.toLocaleDateString(undefined,{
+          day:"2-digit",month:"short",year:"numeric"
+        });
+      }
+    }
+
+    const counts={};
+    (entry.products||[]).forEach(p=>{
+      if(p) counts[p]=(counts[p]||0)+1;
+    });
+
+    const productText=Object.entries(counts).length
+      ? Object.entries(counts)
+          .map(([p,n])=>`${p} — ${n} bag${n===1?'':'s'}`)
+          .join("<br>")
+      : "No product detail";
+
+    const typeLabel=entry.type==="free" ? "🎁 FREE BAG" : "☕ PAID";
+
+    htmlOut+=`
+      <div class="item">
+        <b>${dateText}</b> · ${typeLabel}<br>
+        ${productText}
+      </div>`;
+  });
+
+  if(history.length>30){
+    htmlOut+=`<div class="small">Showing the latest 30 transactions.</div>`;
+  }
+
+  historyEl.innerHTML=htmlOut;
   renderPurchase();
 }
 
