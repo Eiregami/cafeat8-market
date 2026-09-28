@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v20</title>
+<title>Cafeat8 Market v21</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,7 +28,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v20</h1>
+<h1>☕ Cafeat8 Market v21</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
@@ -44,12 +44,13 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
   </div>
 
   <div id="recoveryBox" style="display:none;margin-top:12px">
-    <div class="ok">Password recovery mode</div>
+    <div class="ok">Set / change cloud password</div>
     <input id="newCloudPassword" type="password" autocomplete="new-password" placeholder="Choose a new password">
     <input id="newCloudPassword2" type="password" autocomplete="new-password" placeholder="Repeat new password" style="margin-top:10px">
     <button class="full" onclick="finishPasswordReset()">SAVE NEW PASSWORD</button>
   </div>
   <button id="cloudCheckBtn" class="secondary full" onclick="checkCloudConnection()">Check cloud connection</button>
+  <button id="cloudChangePasswordBtn" class="secondary full" style="display:none" onclick="showPasswordChange()">SET / CHANGE PASSWORD</button>
   <button id="cloudSignOutBtn" class="secondary full" style="display:none" onclick="cloudSignOut()">Sign out from cloud</button>
 </div>
 
@@ -148,9 +149,11 @@ function setCloudUI(message,kind="warn"){
 
   const login=document.getElementById("cloudLoginBox");
   const out=document.getElementById("cloudSignOutBtn");
+  const change=document.getElementById("cloudChangePasswordBtn");
 
   if(login) login.style.display=cloudUser?"none":"block";
   if(out) out.style.display=cloudUser?"block":"none";
+  if(change) change.style.display=cloudUser?"block":"none";
 }
 
 async function refreshCloudSession(){
@@ -189,6 +192,20 @@ async function startPasswordReset(){
   setCloudUI("📧 Password reset email sent. Open it on this device and tap the link.","ok");
 }
 
+function showPasswordChange(){
+  if(!cloudUser){
+    alert("Sign in to the cloud first.");
+    return;
+  }
+  const box=document.getElementById("recoveryBox");
+  if(box) box.style.display="block";
+  setCloudUI("Choose a new password below and save it.","ok");
+  setTimeout(()=>{
+    const p=document.getElementById("newCloudPassword");
+    if(p) p.focus();
+  },50);
+}
+
 async function finishPasswordReset(){
   const p1=document.getElementById("newCloudPassword").value||"";
   const p2=document.getElementById("newCloudPassword2").value||"";
@@ -208,7 +225,7 @@ async function finishPasswordReset(){
   document.getElementById("cloudPassword").value="";
   document.getElementById("newCloudPassword").value="";
   document.getElementById("newCloudPassword2").value="";
-  setCloudUI("✅ New password saved. You are signed in to the cloud.","ok");
+  setCloudUI("✅ New password saved. From now on you can sign in with email + password.","ok");
   markCloudSync();
 }
 
