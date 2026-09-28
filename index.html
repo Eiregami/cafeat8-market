@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v18</title>
+<title>Cafeat8 Market v19</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,16 +28,21 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v18</h1>
+<h1>☕ Cafeat8 Market v19</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
-  <div id="cloudStatus" class="warn">Checking cloud login…</div><div id="lastSyncStatus" class="small">Last cloud sync: —</div>
+  <div id="cloudStatus" class="warn">Checking cloud login…</div>
+  <div id="lastSyncStatus" class="small">Last cloud sync: —</div>
+
   <div id="cloudLoginBox">
-    <input id="cloudEmail" type="email" placeholder="Your Cafeat8 email">
-    <button class="full" onclick="sendMagicLink()">Send login link</button>
-    <div class="small">The app still works locally if you are offline. Cloud sync starts after login.</div>
+    <input id="cloudEmail" type="email" autocomplete="username" placeholder="Cafeat8 email">
+    <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Password" style="margin-top:10px">
+    <button class="full" onclick="cloudPasswordSignIn()">SIGN IN TO CLOUD</button>
+    <div class="small">No login email is needed. The app still keeps a local copy as backup.</div>
   </div>
+
+  <button id="cloudCheckBtn" class="secondary full" onclick="checkCloudConnection()">Check cloud connection</button>
   <button id="cloudSignOutBtn" class="secondary full" style="display:none" onclick="cloudSignOut()">Sign out from cloud</button>
 </div>
 
@@ -133,8 +138,10 @@ function playTestSound(){if(!audioCtx)return;const o=audioCtx.createOscillator()
 function setCloudUI(message,kind="warn"){
   const el=document.getElementById("cloudStatus");
   if(el) el.innerHTML=`<div class="${kind}">${message}</div>`;
+
   const login=document.getElementById("cloudLoginBox");
   const out=document.getElementById("cloudSignOutBtn");
+
   if(login) login.style.display=cloudUser?"none":"block";
   if(out) out.style.display=cloudUser?"block":"none";
 }
@@ -143,37 +150,80 @@ async function refreshCloudSession(){
   try{
     const {data,error}=await supabaseClient.auth.getSession();
     if(error) throw error;
+
     cloudUser=data.session?.user||null;
+
     if(cloudUser){
       setCloudUI(`✅ Cloud connected as ${cloudUser.email}`,"ok");
     }else{
-      setCloudUI("Cloud not signed in. Local storage is still active.","warn");
+      setCloudUI("Cloud database ready — sign in with email and password.","warn");
     }
   }catch(e){
     cloudUser=null;
-    setCloudUI("Cloud connection unavailable. Using local storage.","warn");
+    setCloudUI("Cloud session unavailable. Local storage is still active.","warn");
   }
 }
 
-async function sendMagicLink(){
+async function cloudPasswordSignIn(){
   const email=(document.getElementById("cloudEmail").value||"").trim();
-  if(!email) return alert("Enter your email first.");
-  const redirectTo="https://eiregami.github.io/cafeat8-market/";
-  setCloudUI("Sending login link…","warn");
-  const {error}=await supabaseClient.auth.signInWithOtp({
+  const password=document.getElementById("cloudPassword").value||"";
+
+  if(!email) return alert("Enter your Cafeat8 email.");
+  if(!password) return alert("Enter your cloud password.");
+
+  setCloudUI("Signing in to cloud…","warn");
+
+  const {data,error}=await supabaseClient.auth.signInWithPassword({
     email,
-    options:{emailRedirectTo:redirectTo,shouldCreateUser:false}
+    password
   });
+
   if(error){
-    setCloudUI("Could not send login link: "+error.message,"warn");
+    cloudUser=null;
+    setCloudUI("Cloud login failed: "+error.message,"warn");
     return;
   }
-  setCloudUI("📧 Login link sent. Open the email on this device and tap the link.","ok");
+
+  cloudUser=data.user||data.session?.user||null;
+  if(cloudUser){
+    setCloudUI(`✅ Cloud connected as ${cloudUser.email}`,"ok");
+    markCloudSync();
+    await loadMarketDraft();
+    if(currentCustomer) await selectCustomer();
+    if(document.getElementById("reportsPanel").classList.contains("active")){
+      await loadReports();
+    }
+  }
+}
+
+async function checkCloudConnection(){
+  const btn=document.getElementById("cloudCheckBtn");
+  if(btn) btn.disabled=true;
+
+  try{
+    const res=await fetch(SUPABASE_URL+"/auth/v1/health",{
+      headers:{apikey:SUPABASE_PUBLISHABLE_KEY}
+    });
+
+    if(!res.ok) throw new Error("HTTP "+res.status);
+
+    if(cloudUser){
+      setCloudUI(`✅ Database online and signed in as ${cloudUser.email}`,"ok");
+    }else{
+      setCloudUI("✅ Supabase project is online. Sign in to sync data.","ok");
+    }
+  }catch(e){
+    setCloudUI("⚠️ Cloud database cannot be reached right now. Local storage still works.","warn");
+  }finally{
+    if(btn) btn.disabled=false;
+  }
 }
 
 async function cloudSignOut(){
   await supabaseClient.auth.signOut();
   cloudUser=null;
+  const p=document.getElementById("cloudPassword");
+  if(p) p.value="";
   setCloudUI("Signed out. Local storage remains available.","warn");
 }
 
@@ -341,7 +391,7 @@ async function loadReports(){
   const marketsEl=document.getElementById("reportMarkets");
   const customersEl=document.getElementById("reportCustomers");
   if(!cloudUser){
-    cloudMsg.innerHTML='<div class="warn">Cloud login required to view reports.</div>';
+    cloudMsg.innerHTML='<div class="warn">Cloud login required to view reports. Use your email and password above.</div>';
     summary.textContent="Sign in to cloud first.";
     marketsEl.textContent="Sign in to cloud first.";
     customersEl.textContent="Sign in to cloud first.";
@@ -702,6 +752,7 @@ async function playRewardSound(){if(!audioCtx||!soundEnabled)return;if(audioCtx.
   document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);
 
   await refreshCloudSession();
+  await checkCloudConnection();
 
   supabaseClient.auth.onAuthStateChange(async(event,session)=>{
     cloudUser=session?.user||null;
