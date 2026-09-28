@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v21</title>
+<title>Cafeat8 Market v22</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -28,7 +28,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v21</h1>
+<h1>☕ Cafeat8 Market v22</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
@@ -66,6 +66,20 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 <div class="card"><b>Customer number</b><input id="customer" inputmode="numeric" placeholder="e.g. 00824">
 <div class="row"><button onclick="selectCustomer()">Open / create customer</button><button class="secondary" onclick="clearCustomer()">Clear</button></div>
 <div id="custStatus" class="muted">No customer selected</div></div>
+<div class="card" id="customerProfileCard">
+<h2>Customer information</h2>
+<label>Name</label>
+<input id="customerName" type="text" placeholder="Customer name">
+<label style="display:block;margin-top:10px">Phone</label>
+<input id="customerPhone" type="tel" placeholder="Phone number">
+<label style="display:block;margin-top:10px">Email</label>
+<input id="customerEmail" type="email" placeholder="Customer email">
+<label style="display:block;margin-top:10px">Notes</label>
+<textarea id="customerNotes" placeholder="Notes" style="font-size:20px;width:100%;box-sizing:border-box;padding:13px;border:1px solid #bbb;border-radius:14px;min-height:90px"></textarea>
+<button class="full" onclick="saveCustomerProfile()">SAVE CUSTOMER INFORMATION</button>
+<div id="customerProfileStatus" class="small">Open a customer first.</div>
+</div>
+
 <div class="card"><div style="font-size:31px;font-weight:850">Fidelity: <span id="loyalty">0</span>/10</div><div id="rewardStatus" class="muted">No free bag available</div></div>
 <div class="card"><button onclick="startSalesScanner()">📷 Scan one coffee bag</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
 <video id="videoSales" playsinline muted></video><div id="scanStatus" class="muted">Ready to scan.</div></div>
@@ -127,7 +141,27 @@ const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHA
 let cloudUser=null;
 const key=id=>"cafeat8_customer_"+id;
 
-function getData(id){let d;try{d=JSON.parse(localStorage.getItem(key(id))||'null')}catch(e){}if(!d)d={paid:0,freeUsed:0,products:{},history:[]};return d}
+function getData(id){
+  let d;
+  try{d=JSON.parse(localStorage.getItem(key(id))||'null')}catch(e){}
+  if(!d)d={
+    paid:0,
+    freeUsed:0,
+    products:{},
+    history:[],
+    name:"",
+    phone:"",
+    email:"",
+    notes:""
+  };
+  if(!d.products)d.products={};
+  if(!Array.isArray(d.history))d.history=[];
+  if(d.name===undefined)d.name="";
+  if(d.phone===undefined)d.phone="";
+  if(d.email===undefined)d.email="";
+  if(d.notes===undefined)d.notes="";
+  return d;
+}
 function saveData(id,d){localStorage.setItem(key(id),JSON.stringify(d))}
 function showPanel(name){
   document.getElementById('salesPanel').classList.toggle('active',name==='sales');
@@ -297,7 +331,7 @@ async function loadCustomerFromCloud(id){
 
   const {data:customer,error:e1}=await supabaseClient
     .from("customers")
-    .select("customer_id,paid_bags,free_bags_used")
+    .select("customer_id,paid_bags,free_bags_used,name,phone,email,notes")
     .eq("customer_id",id)
     .maybeSingle();
 
@@ -312,7 +346,17 @@ async function loadCustomerFromCloud(id){
 
   if(e2) throw e2;
 
-  const d={paid:customer.paid_bags||0,freeUsed:customer.free_bags_used||0,products:{},history:[]};
+  const d={
+    paid:customer.paid_bags||0,
+    freeUsed:customer.free_bags_used||0,
+    products:{},
+    history:[],
+    name:customer.name||"",
+    phone:customer.phone||"",
+    email:customer.email||"",
+    notes:customer.notes||""
+  };
+
   (tx||[]).forEach(r=>{
     const q=Number(r.quantity||1);
     if(r.transaction_type==="paid" && r.product){
@@ -324,17 +368,24 @@ async function loadCustomerFromCloud(id){
       products:r.product?Array(q).fill(r.product):[]
     });
   });
+
   return d;
 }
 
 async function saveCustomerToCloud(id,d,newTransactions=[]){
   if(!cloudUser) return;
+
   const {error:e1}=await supabaseClient.from("customers").upsert({
     customer_id:id,
     paid_bags:d.paid,
     free_bags_used:d.freeUsed,
+    name:d.name||null,
+    phone:d.phone||null,
+    email:d.email||null,
+    notes:d.notes||null,
     updated_at:new Date().toISOString()
   },{onConflict:"customer_id"});
+
   if(e1) throw e1;
 
   if(newTransactions.length){
@@ -465,7 +516,7 @@ async function loadReports(){
   cloudMsg.innerHTML='<div class="ok">Loading cloud reports…</div>';
   try{
     const [{data:customers,error:ce},{data:days,error:de}] = await Promise.all([
-      supabaseClient.from("customers").select("customer_id,paid_bags,free_bags_used,updated_at").order("updated_at",{ascending:false}),
+      supabaseClient.from("customers").select("customer_id,paid_bags,free_bags_used,name,phone,email,updated_at").order("updated_at",{ascending:false}),
       supabaseClient.from("market_days").select("id,market_date,location,status,updated_at").order("market_date",{ascending:false}).limit(30)
     ]);
     if(ce) throw ce;
@@ -499,7 +550,7 @@ async function loadReports(){
     const topCustomers=[...(customers||[])].sort((a,b)=>Number(b.paid_bags||0)-Number(a.paid_bags||0)).slice(0,20);
     customersEl.innerHTML=topCustomers.length ? topCustomers.map(c=>{
       const available=Math.max(0,Math.floor(Number(c.paid_bags||0)/10)-Number(c.free_bags_used||0));
-      return `<div class="item">Customer <b>${c.customer_id}</b> — ${Number(c.paid_bags||0)} paid bags<div class="small">Free used: ${Number(c.free_bags_used||0)} · Free available: ${available}</div></div>`;
+      return `<div class="item">Customer <b>${c.customer_id}</b>${c.name?` — ${c.name}`:""} — ${Number(c.paid_bags||0)} paid bags<div class="small">Free used: ${Number(c.free_bags_used||0)} · Free available: ${available}</div></div>`;
     }).join("") : "No customers saved yet.";
     cloudMsg.innerHTML='<div class="ok">✅ Reports loaded from cloud.</div>';
     markCloudSync();
@@ -539,8 +590,81 @@ async function selectCustomer(){
   }
   renderCustomer();
 }
-function clearCustomer(){currentCustomer=null;purchase=[];document.getElementById('customer').value="";document.getElementById('custStatus').textContent="No customer selected";document.getElementById('loyalty').textContent="0";document.getElementById('rewardStatus').textContent="No free bag available";document.getElementById('history').textContent="Select a customer";renderPurchase()}
-function renderCustomer(){if(!currentCustomer)return;const d=getData(currentCustomer),progress=d.paid%10,available=Math.floor(d.paid/10)-d.freeUsed;document.getElementById('custStatus').innerHTML=`<div class="customer-banner">Customer ${currentCustomer}</div><div>${d.paid} paid bags total</div>`;document.getElementById('loyalty').textContent=progress;document.getElementById('rewardStatus').innerHTML=available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";const e=Object.entries(d.products);document.getElementById('history').innerHTML=e.length?e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`:"No purchases yet";renderPurchase()}
+function clearCustomer(){
+  currentCustomer=null;
+  purchase=[];
+  document.getElementById('customer').value="";
+  document.getElementById('custStatus').textContent="No customer selected";
+  document.getElementById('loyalty').textContent="0";
+  document.getElementById('rewardStatus').textContent="No free bag available";
+  document.getElementById('history').textContent="Select a customer";
+
+  document.getElementById('customerName').value="";
+  document.getElementById('customerPhone').value="";
+  document.getElementById('customerEmail').value="";
+  document.getElementById('customerNotes').value="";
+  document.getElementById('customerProfileStatus').textContent="Open a customer first.";
+
+  renderPurchase();
+}
+async function saveCustomerProfile(){
+  if(!currentCustomer) return alert("Open a customer first.");
+
+  const d=getData(currentCustomer);
+  d.name=(document.getElementById("customerName").value||"").trim();
+  d.phone=(document.getElementById("customerPhone").value||"").trim();
+  d.email=(document.getElementById("customerEmail").value||"").trim();
+  d.notes=(document.getElementById("customerNotes").value||"").trim();
+
+  saveData(currentCustomer,d);
+
+  const status=document.getElementById("customerProfileStatus");
+  status.textContent="Saved locally.";
+
+  if(cloudUser){
+    try{
+      await saveCustomerToCloud(currentCustomer,d,[]);
+      status.innerHTML='<div class="ok">✅ Customer information saved to cloud.</div>';
+      markCloudSync();
+    }catch(e){
+      console.error(e);
+      status.innerHTML='<div class="warn">Saved locally, but cloud update failed.</div>';
+    }
+  }else{
+    status.innerHTML='<div class="warn">Saved locally. Sign in to cloud to sync it.</div>';
+  }
+
+  renderCustomer();
+}
+
+function renderCustomer(){
+  if(!currentCustomer)return;
+
+  const d=getData(currentCustomer);
+  const progress=d.paid%10;
+  const available=Math.floor(d.paid/10)-d.freeUsed;
+
+  document.getElementById('custStatus').innerHTML=
+    `<div class="customer-banner">Customer ${currentCustomer}${d.name?` — ${d.name}`:""}</div><div>${d.paid} paid bags total</div>`;
+
+  document.getElementById('loyalty').textContent=progress;
+  document.getElementById('rewardStatus').innerHTML=
+    available>0?`<div class="ok">🎁 ${available} free bag(s) available</div>`:"No free bag available";
+
+  document.getElementById('customerName').value=d.name||"";
+  document.getElementById('customerPhone').value=d.phone||"";
+  document.getElementById('customerEmail').value=d.email||"";
+  document.getElementById('customerNotes').value=d.notes||"";
+  document.getElementById('customerProfileStatus').textContent="Customer information loaded.";
+
+  const e=Object.entries(d.products);
+  document.getElementById('history').innerHTML=e.length
+    ? e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')
+      +`<div class="item">Free bags used: <b>${d.freeUsed}</b></div>`
+    : "No purchases yet";
+
+  renderPurchase();
+}
 
 function canonicalize(t){let s=(t||"").trim();try{if(/^https?:\/\//i.test(s))s=new URL(s).pathname}catch(e){}return s.split('?')[0].split('#')[0].toLowerCase()}
 function productFromText(t){const raw=(t||"").trim();let m=raw.match(/PRODUCT=([^|&]+)/i)||raw.match(/P=([^|&]+)/i);if(m)return m[1].trim().toUpperCase();const map={"/3-brazil-medium-1/":"BRAZIL","/14-peru/":"PERU","/21-mexico/":"MEXICO","/6-sumatra/":"SUMATRA","/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY","/12-robusta-coffee/":"ROBUSTA","/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO","/10-decaffeinated-coffee/":"DECAFFEINATED"};const c=canonicalize(raw)+(canonicalize(raw).endsWith('/')?'':'/');for(const [part,name] of Object.entries(map))if(c.includes(part))return name;return null}
