@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v27</title>
-<script src="https://unpkg.com/@zxing/browser@latest"></script>
+<title>Cafeat8 Market v27.1</title>
+<script src="https://unpkg.com/@zxing/browser@0.1.5"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f1ea;color:#17311f}
@@ -159,7 +159,7 @@ video{border:1px solid #2f2a27}
     <div class="brand-title">Cafeat8 Market</div>
     <div class="brand-subtitle">Inventory · Loyalty · AI Quick Sale</div>
   </div>
-  <div class="version-pill">v27 Safety</div>
+  <div class="version-pill">v27.2 Manual Coffee</div>
 </header>
 
 <div class="card" id="cloudCard">
@@ -216,8 +216,25 @@ video{border:1px solid #2f2a27}
 </div>
 
 <div class="card"><div style="font-size:31px;font-weight:850">Fidelity: <span id="loyalty">0</span>/10</div><div id="rewardStatus" class="muted">No free bag available</div></div>
-<div class="card"><button onclick="startSalesScanner()">📷 Scan one coffee bag</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
-<video id="videoSales" playsinline muted></video><div id="scanStatus" class="muted">Ready to scan.</div></div>
+<div class="card"><h2>Add coffee</h2>
+<div class="muted" style="margin-bottom:10px">Scan one bag QR to identify the coffee, then enter how many bags the customer buys. Or choose/type the coffee manually if there is no QR.</div>
+<button onclick="startSalesScanner()">📷 Scan coffee bag</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
+<video id="videoSales" playsinline muted></video><div id="scanStatus" class="muted">Ready to scan.</div>
+<div style="border-top:1px solid var(--line);margin:16px 0 12px;padding-top:14px">
+<label><b>Or choose / type coffee</b></label>
+<input id="manualCoffee" list="coffeeOptions" type="text" autocomplete="off" placeholder="Start typing, e.g. Honduras">
+<datalist id="coffeeOptions">
+<option value="BRAZIL"><option value="PERU"><option value="MEXICO"><option value="SUMATRA">
+<option value="ESPRESSO OF THE DAY"><option value="STRONG ESPRESSO"><option value="ROBUSTA">
+<option value="ETHIOPIA SIDAMO"><option value="ETHIOPIA YIRGACHEFFE"><option value="ETHIOPIA GUJI DIMTU">
+<option value="DECAFFEINATED"><option value="HONDURAS"><option value="NICARAGUA"><option value="COLOMBIA"><option value="PAPUA NEW GUINEA">
+</datalist>
+<div class="row" style="margin-top:10px;align-items:center">
+<input id="manualCoffeeQty" type="number" min="1" max="20" value="1" style="max-width:120px" aria-label="Quantity">
+<button onclick="addManualCoffee()">＋ ADD COFFEE</button>
+</div>
+<div id="manualCoffeeStatus" class="small"></div>
+</div></div>
 <div class="card"><h2>Current purchase</h2><div id="purchaseList" class="muted">No bags scanned</div>
 <div class="row"><button onclick="finishSale()">Finish paid sale</button><button class="reward" onclick="redeemReward()">Use free bag</button><button class="secondary" onclick="cancelPurchase()">✕ CANCEL PURCHASE</button></div></div>
 <div class="card"><h2>Previous purchases</h2><div id="history" class="muted">Select a customer</div></div>
@@ -1053,10 +1070,25 @@ function renderCustomer(){
 function canonicalize(t){let s=(t||"").trim();try{if(/^https?:\/\//i.test(s))s=new URL(s).pathname}catch(e){}return s.split('?')[0].split('#')[0].toLowerCase()}
 function productFromText(t){const raw=(t||"").trim();let m=raw.match(/PRODUCT=([^|&]+)/i)||raw.match(/P=([^|&]+)/i);if(m)return m[1].trim().toUpperCase();const map={"/3-brazil-medium-1/":"BRAZIL","/14-peru/":"PERU","/21-mexico/":"MEXICO","/6-sumatra/":"SUMATRA","/18-medium-espresso-coffee/":"ESPRESSO OF THE DAY","/12-robusta-coffee/":"ROBUSTA","/5-ethiopia-sidamo/":"ETHIOPIA SIDAMO","/10-decaffeinated-coffee/":"DECAFFEINATED"};const c=canonicalize(raw)+(canonicalize(raw).endsWith('/')?'':'/');for(const [part,name] of Object.entries(map))if(c.includes(part))return name;return null}
 
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]||c))}
+
 async function startScannerOn(videoId,cb,statusId){stopScanner();lastText="";lastTime=0;try{const r=new ZXingBrowser.BrowserQRCodeReader();controls=await r.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},document.getElementById(videoId),(result)=>{if(!result)return;const text=result.getText(),now=Date.now();if(text===lastText&&now-lastTime<1500)return;lastText=text;lastTime=now;cb(text)});document.getElementById(statusId).textContent="Scanner active — point camera at the QR."}catch(e){document.getElementById(statusId).innerHTML='<div class="warn">Camera could not start.</div>';controls=null}}
 function stopScanner(){if(controls){try{controls.stop()}catch(e){}controls=null}["videoSales","videoInventory"].forEach(id=>{const v=document.getElementById(id);if(v&&v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}})}
 
-function startSalesScanner(){if(!currentCustomer)return alert("Open a customer first");startScannerOn("videoSales",(text)=>{const p=productFromText(text);if(!p)return;purchase.push(p);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${p} added</div>`;renderPurchase();stopScanner()},"scanStatus")}
+function startSalesScanner(){if(!currentCustomer)return alert("Open a customer first");startScannerOn("videoSales",(text)=>{const p=productFromText(text);if(!p){document.getElementById('scanStatus').innerHTML=`<div class="warn"><b>QR read, but coffee not recognized.</b><br><span style="font-size:14px;word-break:break-all">${escapeHtml(text)}</span></div>`;return;}const input=document.getElementById('manualCoffee');const qtyInput=document.getElementById('manualCoffeeQty');input.value=p;qtyInput.value='1';document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${p} selected — enter how many bags, then press ADD COFFEE.</div>`;document.getElementById('manualCoffeeStatus').innerHTML=`<div class="ok">Selected from QR: ${p}</div>`;stopScanner();qtyInput.focus();qtyInput.select()},"scanStatus")}
+function addManualCoffee(){
+  if(!currentCustomer)return alert("Open a customer first");
+  const input=document.getElementById('manualCoffee');
+  const qtyInput=document.getElementById('manualCoffeeQty');
+  const status=document.getElementById('manualCoffeeStatus');
+  const name=String(input.value||'').trim().replace(/\s+/g,' ').toUpperCase();
+  const qty=Math.max(1,Math.min(20,parseInt(qtyInput.value||'1',10)||1));
+  if(!name){status.innerHTML='<div class="warn">Type or choose a coffee first.</div>';input.focus();return;}
+  for(let i=0;i<qty;i++)purchase.push(name);
+  renderPurchase();
+  status.innerHTML=`<div class="ok">✓ ${escapeHtml(name)} × ${qty} added</div>`;
+  input.value=''; qtyInput.value='1'; input.focus();
+}
 function renderPurchase(){const el=document.getElementById('purchaseList');if(!purchase.length){el.textContent="No bags scanned";return}const c={};purchase.forEach(p=>c[p]=(c[p]||0)+1);el.innerHTML=Object.entries(c).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b></div>`}
 async function finishSale(){
   if(saleSaving)return;
