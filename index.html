@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v24</title>
+<title>Cafeat8 Market v25</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -24,11 +24,19 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 #celebrationOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.1);z-index:9999;overflow:hidden}
 #celebrationOverlay.show{display:flex}.celebration-card{background:white;border-radius:24px;padding:26px;text-align:center;z-index:2}.particle{position:absolute;width:14px;height:14px;border-radius:50%;animation:burst 1.8s ease-out forwards}
 @keyframes burst{0%{transform:translate(0,0) scale(.2);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0}}
+
+.quick-photo{width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:#eee;display:none;margin-top:10px}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.quick-result{border:2px solid #205b36;border-radius:16px;padding:14px;margin-top:12px}
+.quick-confidence{font-size:18px;font-weight:800}
+.pending-card{border:1px solid #ddd;border-radius:14px;padding:12px;margin:10px 0;background:#fafafa}
+@media(max-width:520px){.quick-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>☕ Cafeat8 Market v24</h1>
+<h1>☕ Cafeat8 Market v25</h1>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
@@ -57,6 +65,7 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 
 <div class="card"><div class="tabs">
 <button id="tabSales" class="tab active" onclick="showPanel('sales')">Customer / Fidelity</button>
+<button id="tabQuickSale" class="tab" onclick="showPanel('quicksale')">📷 AI Quick Sale</button>
 <button id="tabInventory" class="tab" onclick="showPanel('inventory')">Market Inventory</button>
 <button id="tabReports" class="tab" onclick="showPanel('reports')">Reports</button>
 </div></div>
@@ -86,6 +95,67 @@ video{width:100%;border-radius:14px;background:#111;max-height:420px}.ok{backgro
 <div class="card"><h2>Current purchase</h2><div id="purchaseList" class="muted">No bags scanned</div>
 <div class="row"><button onclick="finishSale()">Finish paid sale</button><button class="reward" onclick="redeemReward()">Use free bag</button><button class="secondary" onclick="clearPurchase()">Clear purchase</button></div></div>
 <div class="card"><h2>Previous purchases</h2><div id="history" class="muted">Select a customer</div></div>
+</div>
+
+
+<div id="quickSalePanel" class="panel">
+  <div class="card">
+    <h2>📷 AI Quick Sale</h2>
+    <div class="muted">
+      Put the fidelity card number and the purchased coffee bag(s) in the same photo.
+      AI will propose the customer, coffee and quantity. Nothing is saved until you press CONFIRM.
+    </div>
+
+    <input id="quickPhotoInput" type="file" accept="image/*" capture="environment" style="margin-top:12px">
+    <img id="quickPhotoPreview" class="quick-photo" alt="Quick sale photo preview">
+
+    <button id="quickAnalyzeBtn" class="full" onclick="analyzeQuickSalePhoto()">🤖 ANALYZE PHOTO</button>
+    <div id="quickAiStatus" class="small">Take or choose a photo first.</div>
+  </div>
+
+  <div id="quickResultCard" class="card" style="display:none">
+    <h2>AI suggestion</h2>
+
+    <label>Customer number</label>
+    <input id="quickCustomerId" inputmode="numeric" placeholder="e.g. 00824">
+
+    <label style="display:block;margin-top:10px">Coffee</label>
+    <select id="quickCoffee">
+      <option value="">Select coffee</option>
+      <option>BRAZIL</option>
+      <option>PERU</option>
+      <option>MEXICO</option>
+      <option>SUMATRA</option>
+      <option>ESPRESSO OF THE DAY</option>
+      <option>ROBUSTA</option>
+      <option>ETHIOPIA SIDAMO</option>
+      <option>DECAFFEINATED</option>
+      <option>HONDURAS</option>
+      <option>NICARAGUA</option>
+      <option>COLOMBIA</option>
+      <option>ETHIOPIA YIRGACHEFFE</option>
+      <option>ETHIOPIA GUJI DIMTU</option>
+      <option>PAPUA NEW GUINEA</option>
+      <option>STRONG ESPRESSO</option>
+    </select>
+
+    <label style="display:block;margin-top:10px">Quantity</label>
+    <input id="quickQuantity" type="number" inputmode="numeric" min="1" max="20" value="1">
+
+    <div id="quickConfidence" class="quick-confidence muted" style="margin-top:10px"></div>
+    <div id="quickReason" class="small"></div>
+
+    <button class="full" onclick="confirmQuickSale()">✅ CONFIRM</button>
+    <button class="reward full" onclick="checkQuickSaleLater()">🕓 CHECK LATER</button>
+    <button class="secondary full" onclick="resetQuickSale()">NEW PHOTO</button>
+  </div>
+
+  <div class="card">
+    <h2>🕓 Check later</h2>
+    <div class="small">Photos saved here do not change fidelity until you confirm them.</div>
+    <button class="secondary full" onclick="loadQuickSalePending()">Refresh pending</button>
+    <div id="quickPendingList" class="muted">No pending items loaded.</div>
+  </div>
 </div>
 
 <div id="inventoryPanel" class="panel">
@@ -165,13 +235,18 @@ function getData(id){
 function saveData(id,d){localStorage.setItem(key(id),JSON.stringify(d))}
 function showPanel(name){
   document.getElementById('salesPanel').classList.toggle('active',name==='sales');
+  document.getElementById('quickSalePanel').classList.toggle('active',name==='quicksale');
   document.getElementById('inventoryPanel').classList.toggle('active',name==='inventory');
   document.getElementById('reportsPanel').classList.toggle('active',name==='reports');
+
   document.getElementById('tabSales').classList.toggle('active',name==='sales');
+  document.getElementById('tabQuickSale').classList.toggle('active',name==='quicksale');
   document.getElementById('tabInventory').classList.toggle('active',name==='inventory');
   document.getElementById('tabReports').classList.toggle('active',name==='reports');
+
   stopScanner();
   if(name==='reports') loadReports();
+  if(name==='quicksale') loadQuickSalePending();
 }
 async function enableSound(){const C=window.AudioContext||window.webkitAudioContext;if(!audioCtx)audioCtx=new C();if(audioCtx.state==="suspended")await audioCtx.resume();soundEnabled=true;document.getElementById('soundStatus').innerHTML='<div class="ok">🔊 Sound enabled</div>';playTestSound()}
 function playTestSound(){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=660;g.gain.value=.08;o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.15)}
@@ -826,6 +901,355 @@ async function redeemReward(){
   renderCustomer();
 }
 function clearPurchase(){purchase=[];renderPurchase()}
+
+
+let quickSaleFile=null;
+let quickSaleAiRaw=null;
+
+document.getElementById("quickPhotoInput").addEventListener("change",()=>{
+  const input=document.getElementById("quickPhotoInput");
+  quickSaleFile=input.files && input.files[0] ? input.files[0] : null;
+  const preview=document.getElementById("quickPhotoPreview");
+  const status=document.getElementById("quickAiStatus");
+
+  if(!quickSaleFile){
+    preview.style.display="none";
+    status.textContent="Take or choose a photo first.";
+    return;
+  }
+
+  preview.src=URL.createObjectURL(quickSaleFile);
+  preview.style.display="block";
+  status.innerHTML='<div class="ok">Photo ready. Press ANALYZE PHOTO.</div>';
+});
+
+async function fileToBase64(file){
+  return await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result).split(",")[1]);
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzeQuickSalePhoto(){
+  if(!quickSaleFile) return alert("Take or choose a photo first.");
+  if(!cloudUser) return alert("Sign in to the cloud first. AI Quick Sale uses the secure Supabase connection.");
+
+  const btn=document.getElementById("quickAnalyzeBtn");
+  const status=document.getElementById("quickAiStatus");
+  btn.disabled=true;
+  status.innerHTML='<div class="warn">🤖 AI is reading the fidelity card and coffee…</div>';
+
+  try{
+    const base64=await fileToBase64(quickSaleFile);
+
+    const {data,error}=await supabaseClient.functions.invoke("ai-quick-sale",{
+      body:{
+        image_base64:base64,
+        mime_type:quickSaleFile.type||"image/jpeg"
+      }
+    });
+
+    if(error) throw error;
+    if(!data) throw new Error("No AI result returned.");
+
+    quickSaleAiRaw=data;
+
+    document.getElementById("quickCustomerId").value=data.customer_id||"";
+    document.getElementById("quickCoffee").value=data.coffee||"";
+    document.getElementById("quickQuantity").value=Math.max(1,Number(data.quantity||1));
+
+    const conf=Number(data.confidence||0);
+    document.getElementById("quickConfidence").textContent=
+      `AI confidence: ${Math.round(conf*100)}%`;
+    document.getElementById("quickReason").textContent=data.reason||"";
+
+    document.getElementById("quickResultCard").style.display="block";
+
+    if(!data.customer_id || !data.coffee || conf<0.75){
+      status.innerHTML='<div class="warn">AI is not fully certain. Check the fields, then CONFIRM or CHECK LATER.</div>';
+    }else{
+      status.innerHTML='<div class="ok">AI suggestion ready. Check it and press CONFIRM.</div>';
+    }
+  }catch(e){
+    console.error(e);
+    status.innerHTML=
+      `<div class="warn">AI analysis is not available yet: ${e.message||e}<br>
+      The app is ready, but the secure AI function must be installed in Supabase.</div>`;
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+async function ensureQuickCustomer(id){
+  let d=null;
+
+  if(cloudUser){
+    try{ d=await loadCustomerFromCloud(id); }
+    catch(e){ console.error(e); }
+  }
+
+  if(!d){
+    d=getData(id);
+    saveData(id,d);
+    if(cloudUser){
+      try{ await saveCustomerToCloud(id,d,[]); }
+      catch(e){ console.error(e); }
+    }
+  }else{
+    saveData(id,d);
+  }
+
+  return d;
+}
+
+async function confirmQuickSale(){
+  const id=(document.getElementById("quickCustomerId").value||"").trim();
+  const product=document.getElementById("quickCoffee").value;
+  const qty=Math.max(1,Number(document.getElementById("quickQuantity").value||1));
+
+  if(!id) return alert("Check the customer number first.");
+  if(!product) return alert("Check the coffee first.");
+
+  const d=await ensureQuickCustomer(id);
+  const rewardsBefore=Math.floor(d.paid/10);
+
+  d.paid+=qty;
+  d.products[product]=(d.products[product]||0)+qty;
+  d.history.push({
+    date:new Date().toISOString(),
+    type:"paid",
+    products:Array(qty).fill(product)
+  });
+
+  saveData(id,d);
+
+  if(cloudUser){
+    try{
+      await saveCustomerToCloud(id,d,[{
+        type:"paid",
+        product,
+        quantity:qty
+      }]);
+      markCloudSync();
+    }catch(e){
+      console.error(e);
+      return alert("Saved locally, but cloud sync failed: "+e.message);
+    }
+  }
+
+  const rewardsAfter=Math.floor(d.paid/10);
+  const newRewards=rewardsAfter-rewardsBefore;
+
+  currentCustomer=id;
+  document.getElementById("customer").value=id;
+  renderCustomer();
+
+  document.getElementById("quickAiStatus").innerHTML=
+    `<div class="ok">✅ Saved: Customer ${id} — ${product} × ${qty}</div>`;
+
+  if(newRewards>0) celebrateReward(id,newRewards);
+
+  await markPendingQuickSaleDone();
+  resetQuickSale(false);
+  await loadQuickSalePending();
+}
+
+async function uploadQuickSalePhoto(){
+  if(!quickSaleFile || !cloudUser) return null;
+
+  const ext=(quickSaleFile.name && quickSaleFile.name.includes("."))
+    ? quickSaleFile.name.split(".").pop().toLowerCase()
+    : "jpg";
+  const uid=cloudUser.id||"user";
+  const path=`${uid}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+
+  const {error}=await supabaseClient.storage
+    .from("quick-sale-photos")
+    .upload(path,quickSaleFile,{
+      contentType:quickSaleFile.type||"image/jpeg",
+      upsert:false
+    });
+
+  if(error) throw error;
+  return path;
+}
+
+function localPendingKey(){
+  return "cafeat8_quick_sale_pending";
+}
+
+function getLocalPending(){
+  try{return JSON.parse(localStorage.getItem(localPendingKey())||"[]")}
+  catch(e){return []}
+}
+
+function saveLocalPending(items){
+  localStorage.setItem(localPendingKey(),JSON.stringify(items));
+}
+
+async function checkQuickSaleLater(){
+  if(!quickSaleFile) return alert("There is no photo to save.");
+
+  const id=(document.getElementById("quickCustomerId").value||"").trim()||null;
+  const coffee=document.getElementById("quickCoffee").value||null;
+  const qty=Math.max(1,Number(document.getElementById("quickQuantity").value||1));
+  const confidence=Number(quickSaleAiRaw?.confidence||0);
+
+  if(cloudUser){
+    try{
+      const photoPath=await uploadQuickSalePhoto();
+
+      const {error}=await supabaseClient.from("quick_sale_pending").insert({
+        customer_id:id,
+        coffee,
+        quantity:qty,
+        confidence,
+        photo_path:photoPath,
+        status:"pending",
+        ai_raw:quickSaleAiRaw||{}
+      });
+
+      if(error) throw error;
+
+      document.getElementById("quickAiStatus").innerHTML=
+        '<div class="ok">🕓 Saved to CHECK LATER. Fidelity was NOT changed.</div>';
+      resetQuickSale(false);
+      await loadQuickSalePending();
+      return;
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  // Offline/local fallback. We keep metadata only; the photo stays on the device camera roll.
+  const items=getLocalPending();
+  items.unshift({
+    id:"local-"+Date.now(),
+    customer_id:id,
+    coffee,
+    quantity:qty,
+    confidence,
+    created_at:new Date().toISOString(),
+    status:"pending",
+    local:true
+  });
+  saveLocalPending(items);
+
+  document.getElementById("quickAiStatus").innerHTML=
+    '<div class="warn">Saved locally to CHECK LATER. Keep the original photo on the iPad/phone.</div>';
+  resetQuickSale(false);
+  await loadQuickSalePending();
+}
+
+async function loadQuickSalePending(){
+  const el=document.getElementById("quickPendingList");
+  if(!el) return;
+
+  let items=[];
+
+  if(cloudUser){
+    try{
+      const {data,error}=await supabaseClient
+        .from("quick_sale_pending")
+        .select("id,created_at,customer_id,coffee,quantity,confidence,photo_path,status")
+        .eq("status","pending")
+        .order("created_at",{ascending:false})
+        .limit(50);
+
+      if(error) throw error;
+      items=data||[];
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  items=[...items,...getLocalPending()];
+
+  if(!items.length){
+    el.textContent="No pending Quick Sales.";
+    return;
+  }
+
+  el.innerHTML=items.map(item=>{
+    const d=new Date(item.created_at||Date.now());
+    const when=isNaN(d.getTime())?"":d.toLocaleString();
+    const conf=Math.round(Number(item.confidence||0)*100);
+    return `<div class="pending-card">
+      <b>${item.customer_id||"Customer ?"} — ${item.coffee||"Coffee ?"}</b><br>
+      Quantity: ${item.quantity||1} · AI: ${conf}%<br>
+      <span class="small">${when}</span><br>
+      <button onclick='reviewPendingQuickSale(${JSON.stringify(JSON.stringify(item))})'>REVIEW</button>
+    </div>`;
+  }).join("");
+}
+
+async function reviewPendingQuickSale(serialized){
+  const item=JSON.parse(serialized);
+
+  document.getElementById("quickCustomerId").value=item.customer_id||"";
+  document.getElementById("quickCoffee").value=item.coffee||"";
+  document.getElementById("quickQuantity").value=Math.max(1,Number(item.quantity||1));
+  document.getElementById("quickConfidence").textContent=
+    `AI confidence: ${Math.round(Number(item.confidence||0)*100)}%`;
+  document.getElementById("quickReason").textContent="Review this pending sale, correct it if needed, then CONFIRM.";
+  document.getElementById("quickResultCard").style.display="block";
+  document.getElementById("quickAiStatus").innerHTML=
+    '<div class="warn">Pending sale loaded. Check carefully before confirming.</div>';
+
+  window.currentPendingQuickSale=item;
+
+  if(item.photo_path && cloudUser){
+    try{
+      const {data,error}=await supabaseClient.storage
+        .from("quick-sale-photos")
+        .createSignedUrl(item.photo_path,600);
+      if(!error && data?.signedUrl){
+        const preview=document.getElementById("quickPhotoPreview");
+        preview.src=data.signedUrl;
+        preview.style.display="block";
+      }
+    }catch(e){console.error(e)}
+  }
+}
+
+async function markPendingQuickSaleDone(){
+  const item=window.currentPendingQuickSale;
+  if(!item) return;
+
+  if(item.local){
+    const items=getLocalPending().filter(x=>x.id!==item.id);
+    saveLocalPending(items);
+  }else if(cloudUser){
+    try{
+      await supabaseClient
+        .from("quick_sale_pending")
+        .update({status:"confirmed"})
+        .eq("id",item.id);
+    }catch(e){console.error(e)}
+  }
+
+  window.currentPendingQuickSale=null;
+}
+
+function resetQuickSale(clearStatus=true){
+  quickSaleFile=null;
+  quickSaleAiRaw=null;
+  document.getElementById("quickPhotoInput").value="";
+  const preview=document.getElementById("quickPhotoPreview");
+  preview.src="";
+  preview.style.display="none";
+  document.getElementById("quickResultCard").style.display="none";
+  document.getElementById("quickCustomerId").value="";
+  document.getElementById("quickCoffee").value="";
+  document.getElementById("quickQuantity").value=1;
+  document.getElementById("quickConfidence").textContent="";
+  document.getElementById("quickReason").textContent="";
+  if(clearStatus){
+    document.getElementById("quickAiStatus").textContent="Take or choose a photo first.";
+  }
+}
 
 function marketKey(){const d=document.getElementById('marketDate').value||new Date().toISOString().slice(0,10),l=document.getElementById('marketLocation').value;return `cafeat8_market_${d}_${l}`}
 function saveMarketDraftLocalOnly(){
