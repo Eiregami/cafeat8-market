@@ -159,7 +159,7 @@ video{border:1px solid #2f2a27}
     <div class="brand-title">Cafeat8 Market</div>
     <div class="brand-subtitle">Inventory · Loyalty · AI Quick Sale</div>
   </div>
-  <div class="version-pill">v27.5 QR Diagnostic</div>
+  <div class="version-pill">v27.7 All Editing</div>
 </header>
 
 <div class="card" id="cloudCard">
@@ -260,24 +260,8 @@ video{border:1px solid #2f2a27}
     <input id="quickCustomerId" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 00824">
 
     <label style="display:block;margin-top:10px">Coffee</label>
-    <select id="quickCoffee">
-      <option value="">Select coffee</option>
-      <option>BRAZIL</option>
-      <option>PERU</option>
-      <option>MEXICO</option>
-      <option>SUMATRA</option>
-      <option>ESPRESSO OF THE DAY</option>
-      <option>ROBUSTA</option>
-      <option>ETHIOPIA SIDAMO</option>
-      <option>DECAFFEINATED</option>
-      <option>HONDURAS</option>
-      <option>NICARAGUA</option>
-      <option>COLOMBIA</option>
-      <option>ETHIOPIA YIRGACHEFFE</option>
-      <option>ETHIOPIA GUJI DIMTU</option>
-      <option>PAPUA NEW GUINEA</option>
-      <option>STRONG ESPRESSO</option>
-    </select>
+    <input id="quickCoffee" list="coffeeOptions" type="text" autocomplete="off" placeholder="Choose or type coffee, e.g. Honduras">
+    <div class="small muted">You can choose from the suggestions or type the coffee name manually.</div>
 
     <label style="display:block;margin-top:10px">Quantity</label>
     <input id="quickQuantity" type="number" inputmode="numeric" min="1" max="20" value="1">
@@ -307,10 +291,18 @@ video{border:1px solid #2f2a27}
 <div class="card" id="scannerCard"><button onclick="startInventoryScanner()">📷 Scan coffee QR</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
 <video id="videoInventory" playsinline muted></video><div id="inventoryScanStatus" class="muted">Scan one product QR.</div></div>
 
-<div class="card" id="quantityCard"><h2>Selected product</h2><div id="inventoryProduct" class="product-name">No product scanned</div>
-<div class="qtybox"><button class="secondary" onclick="changeQty(-1)">−</button><div id="inventoryQty" class="qtyvalue">1</div><button onclick="changeQty(1)">+</button><button onclick="changeQty(5)">+5</button></div>
+<div class="card" id="quantityCard"><h2>Select coffee & count</h2>
+<div class="muted" style="margin-bottom:10px">Scan the QR, or choose/type the coffee manually. Enter the TOTAL bags for this coffee.</div>
+<label>Coffee</label>
+<div class="row">
+<input id="inventoryManualCoffee" list="coffeeOptions" type="text" autocomplete="off" placeholder="Start typing, e.g. Honduras">
+<button class="secondary" onclick="selectInventoryCoffeeManual()">SELECT</button>
+</div>
+<div id="inventoryProduct" class="product-name" style="margin-top:12px">No product selected</div>
+<label style="margin-top:10px">Number of bags</label>
+<div class="qtybox"><button class="secondary" onclick="changeQty(-1)">−</button><input id="inventoryQtyInput" type="number" min="0" value="1" style="max-width:110px;text-align:center;font-size:24px;font-weight:900" oninput="setInventoryQtyFromInput()"><button onclick="changeQty(1)">+</button><button onclick="changeQty(5)">+5</button></div>
 <div id="eveningQuickButtons" class="row" style="display:none"><button class="reward" onclick="setSoldOut()">SOLD OUT = 0</button><button class="secondary" onclick="setNoSales()">NO SALES = SAME AS MORNING</button></div>
-<button id="addQtyBtn" class="full" onclick="addInventoryQuantity()">ADD TO MORNING STOCK</button></div>
+<button id="addQtyBtn" class="full" onclick="addInventoryQuantity()">SET MORNING COUNT</button></div>
 
 <div class="card"><h2 id="countTitle">Morning stock entered</h2><div id="inventoryCurrent" class="muted">No morning inventory entered yet.</div></div>
 
@@ -1340,7 +1332,7 @@ async function ensureQuickCustomer(id){
 async function confirmQuickSale(){
   if(quickSaleSaving)return;
   const id=validCustomerId(document.getElementById("quickCustomerId").value||"");
-  const product=document.getElementById("quickCoffee").value;
+  const product=String(document.getElementById("quickCoffee").value||"").trim().replace(/\s+/g," ").toUpperCase();
   const qty=Math.max(1,Math.min(20,Number(document.getElementById("quickQuantity").value||1)));
   if(!id)return alert("Customer number must contain numbers only. Check the fidelity card.");
   if(!product)return alert("Check the coffee first.");
@@ -1393,7 +1385,7 @@ async function checkQuickSaleLater(){
   if(!quickSaleFile) return alert("There is no photo to save.");
 
   const id=(document.getElementById("quickCustomerId").value||"").trim()||null;
-  const coffee=document.getElementById("quickCoffee").value||null;
+  const coffee=String(document.getElementById("quickCoffee").value||"").trim().replace(/\s+/g," ").toUpperCase()||null;
   const qty=Math.max(1,Number(document.getElementById("quickQuantity").value||1));
   const confidence=Number(quickSaleAiRaw?.confidence||0);
 
@@ -1606,11 +1598,33 @@ async function loadMarketDraft(){
   inventoryStage=s.stage||"morning";
   renderInventoryUI();
 }
-function startInventoryScanner(){if(inventoryStage==="waiting")return alert("Press START EVENING COUNT later.");if(inventoryStage==="finished")return alert("Market already finished.");startScannerOn("videoInventory",(text)=>{const p=productFromText(text);if(!p)return;inventoryProduct=p;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent=p;document.getElementById('inventoryQty').textContent=inventoryQty;document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${p} selected — quantity ${inventoryQty}. You can change it, then press ADD, or simply use SAVE MORNING / FINISH MARKET.</div>`;stopScanner()},"inventoryScanStatus")}
-function changeQty(d){const min=inventoryStage==="evening"?0:1;inventoryQty=Math.max(min,inventoryQty+d);document.getElementById('inventoryQty').textContent=inventoryQty}
-function resetInventorySelection(){inventoryProduct=null;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent="No product scanned";document.getElementById('inventoryQty').textContent=inventoryQty}
-function setSoldOut(){if(inventoryStage!=="evening"||!inventoryProduct)return;inventoryQty=0;document.getElementById('inventoryQty').textContent=0}
-function setNoSales(){if(inventoryStage!=="evening"||!inventoryProduct)return;inventoryQty=Number(inventoryMorning[inventoryProduct]||0);document.getElementById('inventoryQty').textContent=inventoryQty}
+function setInventorySelection(p){
+  if(!p)return;
+  inventoryProduct=p;
+  if(inventoryStage==="morning") inventoryQty=Number(inventoryMorning[p]??1);
+  else if(inventoryStage==="evening") inventoryQty=eveningCounted[p]?Number(inventoryEvening[p]||0):Number(inventoryMorning[p]||0);
+  else inventoryQty=0;
+  document.getElementById('inventoryProduct').textContent=p;
+  const input=document.getElementById('inventoryQtyInput'); if(input){input.value=inventoryQty;input.min=inventoryStage==="evening"?"0":"0"}
+  const manual=document.getElementById('inventoryManualCoffee'); if(manual)manual.value=p;
+}
+function startInventoryScanner(){if(inventoryStage==="waiting")return alert("Press START EVENING COUNT later.");if(inventoryStage==="finished")return alert("Market already finished.");startScannerOn("videoInventory",(text)=>{const p=productFromText(text);const status=document.getElementById('inventoryScanStatus');if(!p){status.innerHTML=`<div class="warn"><b>QR read, but coffee not recognized.</b><br>Raw: <span style="font-size:13px;word-break:break-all">${escapeHtml(text)}</span><br>Choose/type the coffee manually below.</div>`;return}setInventorySelection(p);status.innerHTML=`<div class="ok">✓ ${p} selected — enter the TOTAL bags, then press SET COUNT.</div>`;stopScanner()},"inventoryScanStatus")}
+function selectInventoryCoffeeManual(){
+  if(inventoryStage==="waiting")return alert("Press START EVENING COUNT later.");
+  if(inventoryStage==="finished")return alert("Market already finished.");
+  const raw=(document.getElementById('inventoryManualCoffee').value||'').trim();
+  if(!raw)return alert("Choose or type a coffee first");
+  const p=COFFEES.find(x=>x.toLowerCase()===raw.toLowerCase())||raw.toUpperCase();
+  if(inventoryStage==="evening" && !(p in inventoryMorning))return alert("This coffee was not in the morning inventory.");
+  setInventorySelection(p);
+  document.getElementById('inventoryScanStatus').innerHTML=`<div class="ok">✓ ${escapeHtml(p)} selected manually — enter the TOTAL bags.</div>`;
+  const q=document.getElementById('inventoryQtyInput'); if(q){q.focus();q.select()}
+}
+function setInventoryQtyFromInput(){const el=document.getElementById('inventoryQtyInput');if(!el)return;inventoryQty=Math.max(0,Number(el.value||0))}
+function changeQty(d){setInventoryQtyFromInput();inventoryQty=Math.max(0,inventoryQty+d);const el=document.getElementById('inventoryQtyInput');if(el)el.value=inventoryQty}
+function resetInventorySelection(){inventoryProduct=null;inventoryQty=inventoryStage==="evening"?0:1;document.getElementById('inventoryProduct').textContent="No product selected";const q=document.getElementById('inventoryQtyInput');if(q)q.value=inventoryQty;const m=document.getElementById('inventoryManualCoffee');if(m)m.value=""}
+function setSoldOut(){if(inventoryStage!=="evening"||!inventoryProduct)return;inventoryQty=0;const el=document.getElementById('inventoryQtyInput');if(el)el.value=0}
+function setNoSales(){if(inventoryStage!=="evening"||!inventoryProduct)return;inventoryQty=Number(inventoryMorning[inventoryProduct]||0);const el=document.getElementById('inventoryQtyInput');if(el)el.value=inventoryQty}
 function commitPendingInventory(){
   if(!inventoryProduct) return false;
 
@@ -1618,9 +1632,9 @@ function commitPendingInventory(){
   const q=inventoryQty;
 
   if(inventoryStage==="morning"){
-    inventoryMorning[p]=(inventoryMorning[p]||0)+q;
+    inventoryMorning[p]=q;
     document.getElementById('inventoryScanStatus').innerHTML=
-      `<div class="ok">${q} × ${p} added to morning stock.</div>`;
+      `<div class="ok">${p} morning stock set to ${q} bags.</div>`;
   }else if(inventoryStage==="evening"){
     const morning=Number(inventoryMorning[p]||0);
     if(q>morning){alert(`${p}: evening stock (${q}) cannot be greater than morning stock (${morning}). Please correct the count.`);return false}
@@ -1639,7 +1653,8 @@ function commitPendingInventory(){
 }
 
 function addInventoryQuantity(){
-  if(!inventoryProduct) return alert("Scan a coffee first");
+  if(!inventoryProduct) return alert("Scan, choose, or type a coffee first");
+  setInventoryQtyFromInput();
   commitPendingInventory();
 }
 function advanceInventoryStage(){
@@ -1664,9 +1679,9 @@ function advanceInventoryStage(){
 
 function renderInventoryUI(){
 const b=document.getElementById('stageBanner'),h=document.getElementById('stageHelp'),a=document.getElementById('addQtyBtn'),q=document.getElementById('eveningQuickButtons'),p=document.getElementById('primaryStageButton'),s=document.getElementById('secondaryStageButton'),f=document.getElementById('finishButton'),sc=document.getElementById('scannerCard'),qc=document.getElementById('quantityCard'),ct=document.getElementById('countTitle');
-if(inventoryStage==="morning"){b.className="stage morning";b.textContent="🌅 MORNING INVENTORY";h.textContent="Scan a coffee, choose quantity, then add it.";a.textContent="ADD TO MORNING STOCK";q.style.display="none";p.style.display="block";p.textContent="SAVE MORNING";s.style.display="none";f.style.display="none";sc.style.display="block";qc.style.display="block";ct.textContent="Morning stock entered"}
+if(inventoryStage==="morning"){b.className="stage morning";b.textContent="🌅 MORNING INVENTORY";h.textContent="Scan or choose a coffee, enter the total bags, then set the count.";a.textContent="SET MORNING COUNT";q.style.display="none";p.style.display="block";p.textContent="SAVE MORNING";s.style.display="none";f.style.display="none";sc.style.display="block";qc.style.display="block";ct.textContent="Morning stock entered"}
 else if(inventoryStage==="waiting"){b.className="stage morning";b.textContent="✅ MORNING SAVED";h.textContent="When the market is finished, start the evening count.";p.style.display="none";s.style.display="block";f.style.display="none";sc.style.display="none";qc.style.display="none";ct.textContent="Morning stock saved"}
-else if(inventoryStage==="evening"){b.className="stage evening";b.textContent="🌙 EVENING INVENTORY";h.textContent="Enter what remains.";a.textContent="ADD TO EVENING STOCK";q.style.display="flex";p.style.display="none";s.style.display="none";f.style.display="block";sc.style.display="block";qc.style.display="block";ct.textContent="Evening stock entered"}
+else if(inventoryStage==="evening"){b.className="stage evening";b.textContent="🌙 EVENING INVENTORY";h.textContent="Scan or choose each coffee and enter what remains.";a.textContent="SET EVENING COUNT";q.style.display="flex";p.style.display="none";s.style.display="none";f.style.display="block";sc.style.display="block";qc.style.display="block";ct.textContent="Evening stock entered"}
 else{b.className="stage finished";b.textContent="✅ MARKET FINISHED";h.textContent="The final result is saved.";p.style.display="none";s.style.display="none";f.style.display="none";sc.style.display="none";qc.style.display="none";ct.textContent="Final inventory"}
 renderInventoryCurrent();renderMarketResult()}
 
