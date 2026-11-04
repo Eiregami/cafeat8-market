@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#205b36">
-<title>Cafeat8 Market v26</title>
+<title>Cafeat8 Market v27</title>
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -141,6 +141,14 @@ video{border:1px solid #2f2a27}
   .version-pill{font-size:12px}
 }
 
+
+/* ===== v27 safety / correction additions ===== */
+.sync-strip{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:12px;font-weight:850;font-size:14px}
+.sync-ok{background:#edf7ef;color:#27563a;border:1px solid #cfe6d3}.sync-warn{background:#fff6db;color:#6f591d;border:1px solid #eadca9}.sync-bad{background:#fdebea;color:#7b2d29;border:1px solid #efc4c1}
+.history-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.mini-btn{font-size:14px!important;padding:8px 10px!important;margin:0!important}
+.edit-grid{display:grid;grid-template-columns:1.4fr .7fr .7fr;gap:8px;align-items:center}.edit-grid .head{font-weight:900;color:var(--coffee);border-bottom:1px solid var(--line);padding-bottom:6px}.edit-grid input{font-size:17px!important;padding:8px!important}
+.invalid-row{background:#fdebea;border-radius:10px;padding:5px}.danger-text{color:#9b2e2a;font-weight:800}
+@media(max-width:520px){.edit-grid{grid-template-columns:1.2fr .8fr .8fr;font-size:14px}.edit-grid input{font-size:16px!important}}
 </style>
 </head>
 <body>
@@ -151,13 +159,14 @@ video{border:1px solid #2f2a27}
     <div class="brand-title">Cafeat8 Market</div>
     <div class="brand-subtitle">Inventory · Loyalty · AI Quick Sale</div>
   </div>
-  <div class="version-pill">v26.1</div>
+  <div class="version-pill">v27 Safety</div>
 </header>
 
 <div class="card" id="cloudCard">
   <h2>☁️ Cloud database</h2>
   <div id="cloudStatus" class="warn">Checking cloud login…</div>
   <div id="lastSyncStatus" class="small">Last cloud sync: —</div>
+  <div id="syncState" class="sync-strip sync-warn">⏳ Checking sync status…</div>
 
   <div id="cloudLoginBox">
     <input id="cloudEmail" type="email" autocomplete="username" placeholder="Cafeat8 email">
@@ -174,6 +183,7 @@ video{border:1px solid #2f2a27}
     <button class="full" onclick="finishPasswordReset()">SAVE NEW PASSWORD</button>
   </div>
   <button id="cloudCheckBtn" class="secondary full" onclick="checkCloudConnection()">Check cloud connection</button>
+  <button id="syncPendingBtn" class="secondary full" style="display:none" onclick="flushPendingSales()">SYNC PENDING SALES</button>
   <button id="cloudChangePasswordBtn" class="secondary full" style="display:none" onclick="showPasswordChange()">SET / CHANGE PASSWORD</button>
   <button id="cloudSignOutBtn" class="secondary full" style="display:none" onclick="cloudSignOut()">Sign out from cloud</button>
 </div>
@@ -188,8 +198,8 @@ video{border:1px solid #2f2a27}
 
 <div id="salesPanel" class="panel active">
 <div class="card"><button class="sound" onclick="enableSound()">🔊 Enable sound</button><div id="soundStatus" class="muted">Tap once on iPhone to enable reward sound.</div></div>
-<div class="card"><b>Customer number</b><input id="customer" inputmode="numeric" placeholder="e.g. 00824">
-<div class="row"><button onclick="selectCustomer()">Open / create customer</button><button class="secondary" onclick="clearCustomer()">Clear</button></div>
+<div class="card"><b>Customer number</b><input id="customer" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 00824">
+<div class="row"><button onclick="selectCustomer()">Open / create customer</button><button class="secondary" onclick="nextCustomer()">👤 NEXT CUSTOMER</button></div>
 <div id="custStatus" class="muted">No customer selected</div></div>
 <div class="card" id="customerProfileCard">
 <h2>Customer information</h2>
@@ -209,7 +219,7 @@ video{border:1px solid #2f2a27}
 <div class="card"><button onclick="startSalesScanner()">📷 Scan one coffee bag</button><button class="secondary" onclick="stopScanner()">Stop camera</button>
 <video id="videoSales" playsinline muted></video><div id="scanStatus" class="muted">Ready to scan.</div></div>
 <div class="card"><h2>Current purchase</h2><div id="purchaseList" class="muted">No bags scanned</div>
-<div class="row"><button onclick="finishSale()">Finish paid sale</button><button class="reward" onclick="redeemReward()">Use free bag</button><button class="secondary" onclick="clearPurchase()">Clear purchase</button></div></div>
+<div class="row"><button onclick="finishSale()">Finish paid sale</button><button class="reward" onclick="redeemReward()">Use free bag</button><button class="secondary" onclick="cancelPurchase()">✕ CANCEL PURCHASE</button></div></div>
 <div class="card"><h2>Previous purchases</h2><div id="history" class="muted">Select a customer</div></div>
 </div>
 
@@ -230,7 +240,7 @@ video{border:1px solid #2f2a27}
     <h2>AI suggestion</h2>
 
     <label>Customer number</label>
-    <input id="quickCustomerId" inputmode="numeric" placeholder="e.g. 00824">
+    <input id="quickCustomerId" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 00824">
 
     <label style="display:block;margin-top:10px">Coffee</label>
     <select id="quickCoffee">
@@ -304,9 +314,19 @@ video{border:1px solid #2f2a27}
     <h2>📊 Cafeat8 Reports</h2>
     <div id="reportCloudStatus" class="muted">Sign in to cloud to see reports.</div>
     <button class="full" onclick="loadReports()">Refresh reports</button>
+    <button class="secondary full" onclick="exportReportsCSV()">⬇️ Export market CSV</button>
   </div>
   <div class="card"><h2>Summary</h2><div id="reportSummary" class="muted">No report loaded yet.</div></div>
   <div class="card"><h2>Recent markets</h2><div id="reportMarkets" class="muted">No report loaded yet.</div></div>
+  <div id="reportEditCard" class="card" style="display:none">
+    <h2>✏️ Correct market</h2>
+    <div id="reportEditTitle" class="ok"></div>
+    <div class="small" style="margin:10px 0">Correct the real morning/evening counts. Sold is recalculated automatically.</div>
+    <div id="reportEditRows"></div>
+    <button class="full" onclick="saveMarketCorrection()">SAVE CORRECTION</button>
+    <button class="secondary full" onclick="cancelMarketEdit()">CANCEL EDIT</button>
+    <div id="reportEditStatus" class="small"></div>
+  </div>
   <div class="card"><h2>Customer loyalty overview</h2><div id="reportCustomers" class="muted">No report loaded yet.</div></div>
 </div>
 
@@ -314,6 +334,8 @@ video{border:1px solid #2f2a27}
 
 <script>
 let currentCustomer=null,purchase=[],controls=null,lastText="",lastTime=0,audioCtx=null,soundEnabled=false;
+let saleSaving=false,quickSaleSaving=false;
+let reportDaysCache=[],reportInventoryCache=[],editingMarketDayId=null;
 let inventoryStage="morning",inventoryProduct=null,inventoryQty=1,inventoryMorning={},inventoryEvening={},eveningCounted={};
 
 const SUPABASE_URL="https://uytfdapgkvwatwycdywe.supabase.co";
@@ -324,6 +346,76 @@ const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHA
 let cloudUser=null;
 const key=id=>"cafeat8_customer_"+id;
 
+
+function makeClientId(prefix="sale"){
+  const rnd=(crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now()+"-"+Math.random().toString(36).slice(2);
+  return `${prefix}-${rnd}`;
+}
+function validCustomerId(raw){
+  const v=String(raw||"").trim();
+  return /^\d+$/.test(v)?v:null;
+}
+function pendingSalesKey(){return "cafeat8_pending_cloud_sales_v27"}
+function getPendingSales(){try{return JSON.parse(localStorage.getItem(pendingSalesKey())||"[]")}catch(e){return []}}
+function setPendingSales(v){localStorage.setItem(pendingSalesKey(),JSON.stringify(v));updateSyncState()}
+function updateSyncState(){
+  const el=document.getElementById("syncState"),btn=document.getElementById("syncPendingBtn"); if(!el)return;
+  const n=getPendingSales().length;
+  if(btn) btn.style.display=n?"block":"none";
+  if(!cloudUser){el.className="sync-strip sync-warn";el.textContent=n?`⚠️ ${n} sale(s) waiting for cloud sign-in`:`☁️ Local mode — cloud not signed in`;return}
+  if(n){el.className="sync-strip sync-warn";el.textContent=`⚠️ ${n} sale(s) saved locally and waiting to sync`;return}
+  el.className="sync-strip sync-ok";el.textContent="✅ Cloud synced — no pending sales";
+}
+function applyLocalSale(id,type,items,saleId,dateIso=new Date().toISOString()){
+  const d=getData(id); const total=items.reduce((a,x)=>a+Number(x.quantity||1),0);
+  if(type==="paid"){
+    d.paid+=total;
+    items.forEach(x=>{if(x.product)d.products[x.product]=(d.products[x.product]||0)+Number(x.quantity||1)});
+  }else if(type==="free") d.freeUsed+=total;
+  items.forEach(x=>d.history.push({date:dateIso,type,products:x.product?Array(Number(x.quantity||1)).fill(x.product):[],saleId,localPending:true}));
+  saveData(id,d); return d;
+}
+async function recordCustomerSaleAtomic(id,type,items,saleId){
+  if(!cloudUser) throw new Error("Cloud is not signed in");
+  const {data,error}=await supabaseClient.rpc("record_customer_sale",{p_customer_id:id,p_type:type,p_items:items,p_client_sale_id:saleId});
+  if(error) throw error; return data;
+}
+async function flushPendingSales(){
+  if(!cloudUser) return alert("Sign in to cloud first.");
+  let q=getPendingSales(); if(!q.length){updateSyncState();return}
+  const remaining=[];
+  for(const x of q){
+    try{await recordCustomerSaleAtomic(x.customer_id,x.type,x.items,x.sale_id)}catch(e){console.error(e);remaining.push(x)}
+  }
+  setPendingSales(remaining);
+  if(!remaining.length){markCloudSync();cloudNotice("Pending sales synced safely."); if(currentCustomer){const d=await loadCustomerFromCloud(currentCustomer);if(d){saveData(currentCustomer,d);renderCustomer()}}}
+  else setCloudUI(`${remaining.length} pending sale(s) still could not sync.`,`warn`);
+}
+async function saveSaleWithQueue(id,type,items){
+  const saleId=makeClientId(type),createdAt=new Date().toISOString();
+  if(cloudUser){
+    try{
+      await recordCustomerSaleAtomic(id,type,items,saleId);
+      const fresh=await loadCustomerFromCloud(id); if(fresh)saveData(id,fresh);
+      markCloudSync();updateSyncState(); return {d:fresh||getData(id),saleId,queued:false};
+    }catch(e){console.error(e)}
+  }
+  const d=applyLocalSale(id,type,items,saleId,createdAt);
+  const q=getPendingSales(); q.push({customer_id:id,type,items,sale_id:saleId,created_at:createdAt}); setPendingSales(q);
+  setCloudUI("Sale saved locally and queued for safe cloud sync.","warn");
+  return {d,saleId,queued:true};
+}
+async function undoCloudTransaction(txId){
+  if(!cloudUser)return alert("Sign in to cloud first.");
+  if(!confirm("Undo this transaction? The loyalty totals will be corrected automatically."))return;
+  const reason=prompt("Optional correction note:","Entry mistake")||"Entry mistake";
+  try{
+    const {error}=await supabaseClient.rpc("void_customer_transaction",{p_transaction_id:Number(txId),p_reason:reason});
+    if(error)throw error;
+    const d=await loadCustomerFromCloud(currentCustomer); if(d){saveData(currentCustomer,d);renderCustomer()}
+    markCloudSync();updateSyncState();
+  }catch(e){console.error(e);alert("Could not undo: "+e.message)}
+}
 function getData(id){
   let d;
   try{d=JSON.parse(localStorage.getItem(key(id))||'null')}catch(e){}
@@ -516,47 +608,19 @@ async function cloudSignOut(){
 
 async function loadCustomerFromCloud(id){
   if(!cloudUser) return null;
-
-  const {data:customer,error:e1}=await supabaseClient
-    .from("customers")
-    .select("customer_id,paid_bags,free_bags_used,name,phone,email,notes")
-    .eq("customer_id",id)
-    .maybeSingle();
-
-  if(e1) throw e1;
-  if(!customer) return null;
-
-  const {data:tx,error:e2}=await supabaseClient
-    .from("customer_transactions")
-    .select("transaction_type,product,quantity,created_at")
-    .eq("customer_id",id)
-    .order("created_at",{ascending:true});
-
-  if(e2) throw e2;
-
-  const d={
-    paid:customer.paid_bags||0,
-    freeUsed:customer.free_bags_used||0,
-    products:{},
-    history:[],
-    name:customer.name||"",
-    phone:customer.phone||"",
-    email:customer.email||"",
-    notes:customer.notes||""
-  };
-
-  (tx||[]).forEach(r=>{
+  const {data:customer,error:e1}=await supabaseClient.from("customers")
+    .select("customer_id,paid_bags,free_bags_used,name,phone,email,notes").eq("customer_id",id).maybeSingle();
+  if(e1) throw e1; if(!customer) return null;
+  let query=supabaseClient.from("customer_transactions")
+    .select("id,transaction_type,product,quantity,created_at,client_sale_id,voided_at")
+    .eq("customer_id",id).order("created_at",{ascending:true});
+  const {data:tx,error:e2}=await query; if(e2) throw e2;
+  const d={paid:Number(customer.paid_bags||0),freeUsed:Number(customer.free_bags_used||0),products:{},history:[],name:customer.name||"",phone:customer.phone||"",email:customer.email||"",notes:customer.notes||""};
+  (tx||[]).filter(r=>!r.voided_at).forEach(r=>{
     const q=Number(r.quantity||1);
-    if(r.transaction_type==="paid" && r.product){
-      d.products[r.product]=(d.products[r.product]||0)+q;
-    }
-    d.history.push({
-      date:r.created_at,
-      type:r.transaction_type,
-      products:r.product?Array(q).fill(r.product):[]
-    });
+    if(r.transaction_type==="paid"&&r.product)d.products[r.product]=(d.products[r.product]||0)+q;
+    d.history.push({date:r.created_at,type:r.transaction_type,products:r.product?Array(q).fill(r.product):[],transactionId:r.id,saleId:r.client_sale_id||null});
   });
-
   return d;
 }
 
@@ -620,6 +684,7 @@ async function syncMarketToCloud(){
     const morning=Number(inventoryMorning[product]||0);
     const counted=!!eveningCounted[product];
     const evening=counted?Number(inventoryEvening[product]||0):null;
+    if(counted && evening>morning) throw new Error(`${product}: evening stock cannot be greater than morning stock.`);
     return {
       market_day_id:day.id,
       product,
@@ -687,6 +752,7 @@ function markCloudSync(){
   const el=document.getElementById("lastSyncStatus");
   if(!el) return;
   el.textContent="Last cloud sync: "+new Date().toLocaleString();
+  updateSyncState();
 }
 
 async function loadReports(){
@@ -712,10 +778,11 @@ async function loadReports(){
     const dayIds=(days||[]).map(d=>d.id);
     let inventoryRows=[];
     if(dayIds.length){
-      const {data:inv,error:ie}=await supabaseClient.from("market_inventory").select("market_day_id,product,morning_bags,evening_bags,sold_bags").in("market_day_id",dayIds);
+      const {data:inv,error:ie}=await supabaseClient.from("market_inventory").select("id,market_day_id,product,morning_bags,evening_bags,sold_bags").in("market_day_id",dayIds);
       if(ie) throw ie;
       inventoryRows=inv||[];
     }
+    reportDaysCache=days||[];reportInventoryCache=inventoryRows||[];
     const totalPaid=(customers||[]).reduce((s,c)=>s+Number(c.paid_bags||0),0);
     const totalFree=(customers||[]).reduce((s,c)=>s+Number(c.free_bags_used||0),0);
     const totalSold=inventoryRows.reduce((s,r)=>s+Number(r.sold_bags||0),0);
@@ -733,7 +800,7 @@ async function loadReports(){
       const rows=rowsByDay[d.id]||[];
       const sold=rows.reduce((s,r)=>s+Number(r.sold_bags||0),0);
       const details=rows.filter(r=>Number(r.sold_bags||0)>0).map(r=>`${r.product}: ${Number(r.sold_bags||0)}`).join(" · ");
-      return `<div class="item"><b>${d.market_date} — ${d.location}</b><br>${sold} bags sold = ${(sold*0.5).toFixed(1)} kg${details?`<div class="small">${details}</div>`:""}<div class="small">Status: ${d.status}</div></div>`;
+      return `<div class="item"><b>${d.market_date} — ${d.location}</b><br>${sold} bags sold = ${(sold*0.5).toFixed(1)} kg${details?`<div class="small">${details}</div>`:""}<div class="small">Status: ${d.status}</div><button class="secondary mini-btn" onclick="editMarketDay(${d.id})">✏️ EDIT MARKET</button></div>`;
     }).join("") : "No market days saved yet.";
     const topCustomers=[...(customers||[])].sort((a,b)=>Number(b.paid_bags||0)-Number(a.paid_bags||0)).slice(0,20);
     customersEl.innerHTML=topCustomers.length ? topCustomers.map(c=>{
@@ -748,9 +815,34 @@ async function loadReports(){
   }
 }
 
+
+function editMarketDay(dayId){
+  const d=reportDaysCache.find(x=>Number(x.id)===Number(dayId)); if(!d)return;
+  editingMarketDayId=Number(dayId); const rows=reportInventoryCache.filter(x=>Number(x.market_day_id)===Number(dayId));
+  document.getElementById("reportEditTitle").textContent=`${d.market_date} — ${d.location} — ${d.status}`;
+  const body=rows.map(r=>`<div class="edit-grid item" data-row-id="${r.id}"><div><b>${r.product}</b></div><div><input class="edit-am" type="number" min="0" value="${Number(r.morning_bags||0)}" aria-label="Morning ${r.product}"></div><div><input class="edit-pm" type="number" min="0" value="${r.evening_bags===null?"":Number(r.evening_bags||0)}" aria-label="Evening ${r.product}"></div></div>`).join("");
+  document.getElementById("reportEditRows").innerHTML=`<div class="edit-grid"><div class="head">Coffee</div><div class="head">Morning</div><div class="head">Evening</div></div>${body}`;
+  document.getElementById("reportEditStatus").textContent="";document.getElementById("reportEditCard").style.display="block";document.getElementById("reportEditCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function cancelMarketEdit(){editingMarketDayId=null;document.getElementById("reportEditCard").style.display="none"}
+async function saveMarketCorrection(){
+  if(!cloudUser||!editingMarketDayId)return;
+  const status=document.getElementById("reportEditStatus"),rows=[...document.querySelectorAll("#reportEditRows [data-row-id]")],updates=[];
+  for(const row of rows){const am=Math.max(0,Number(row.querySelector(".edit-am").value||0)),pmRaw=row.querySelector(".edit-pm").value.trim(),pm=pmRaw===""?null:Math.max(0,Number(pmRaw));if(pm!==null&&pm>am){status.innerHTML='<div class="warn">Evening stock cannot be greater than morning stock.</div>';return}updates.push({id:Number(row.dataset.rowId),morning_bags:am,evening_bags:pm,sold_bags:pm===null?null:am-pm,updated_at:new Date().toISOString()})}
+  try{for(const u of updates){const {error}=await supabaseClient.from("market_inventory").update({morning_bags:u.morning_bags,evening_bags:u.evening_bags,sold_bags:u.sold_bags,updated_at:u.updated_at}).eq("id",u.id);if(error)throw error}await supabaseClient.from("market_days").update({updated_at:new Date().toISOString()}).eq("id",editingMarketDayId);markCloudSync();cancelMarketEdit();await loadReports()}catch(e){console.error(e);status.innerHTML=`<div class="warn">Correction failed: ${e.message}</div>`}
+}
+function exportReportsCSV(){
+  if(!reportDaysCache.length)return alert("Refresh reports first.");
+  const dayMap=Object.fromEntries(reportDaysCache.map(d=>[d.id,d])); const lines=[["date","location","status","coffee","morning_bags","evening_bags","sold_bags"]];
+  reportInventoryCache.forEach(r=>{const d=dayMap[r.market_day_id]||{};lines.push([d.market_date||"",d.location||"",d.status||"",r.product||"",r.morning_bags??"",r.evening_bags??"",r.sold_bags??""])});
+  const csv=lines.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`cafeat8-market-report-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href)
+}
+
 async function selectCustomer(){
-  const id=document.getElementById('customer').value.trim();
-  if(!id) return alert("Enter customer number first");
+  const raw=document.getElementById('customer').value;
+  const id=validCustomerId(raw);
+  if(!id) return alert("Customer number must contain numbers only. Example: 00824");
+  document.getElementById('customer').value=id;
   if(currentCustomer&&currentCustomer!==id) purchase=[];
   currentCustomer=id;
 
@@ -794,6 +886,15 @@ function clearCustomer(){
   document.getElementById('customerProfileStatus').textContent="Open a customer first.";
 
   renderPurchase();
+}
+function nextCustomer(){
+  clearCustomer();
+  stopScanner();
+  const input=document.getElementById('customer');
+  if(input){
+    input.focus();
+    try{ input.select(); }catch(e){}
+  }
 }
 async function saveCustomerProfile(){
   if(!currentCustomer) return alert("Open a customer first.");
@@ -933,10 +1034,11 @@ function renderCustomer(){
 
     const typeLabel=entry.type==="free" ? "🎁 FREE BAG" : "☕ PAID";
 
+    const undoBtn=(entry.transactionId&&cloudUser)?`<div class="history-actions"><button class="danger mini-btn" onclick="undoCloudTransaction(${entry.transactionId})">UNDO / CORRECT</button></div>`:"";
     htmlOut+=`
       <div class="item">
         <b>${dateText}</b> · ${typeLabel}<br>
-        ${productText}
+        ${productText}${undoBtn}
       </div>`;
   });
 
@@ -957,63 +1059,33 @@ function stopScanner(){if(controls){try{controls.stop()}catch(e){}controls=null}
 function startSalesScanner(){if(!currentCustomer)return alert("Open a customer first");startScannerOn("videoSales",(text)=>{const p=productFromText(text);if(!p)return;purchase.push(p);document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${p} added</div>`;renderPurchase();stopScanner()},"scanStatus")}
 function renderPurchase(){const el=document.getElementById('purchaseList');if(!purchase.length){el.textContent="No bags scanned";return}const c={};purchase.forEach(p=>c[p]=(c[p]||0)+1);el.innerHTML=Object.entries(c).map(([p,n])=>`<div class="item">${p}: <b>${n}</b></div>`).join('')+`<div class="item">Total: <b>${purchase.length}</b></div>`}
 async function finishSale(){
-  if(!currentCustomer||!purchase.length) return alert("Open customer and scan coffee first");
-  const d=getData(currentCustomer);
-  const before=Math.floor(d.paid/10);
-  const soldProducts=[...purchase];
-
-  d.paid+=soldProducts.length;
-  soldProducts.forEach(p=>d.products[p]=(d.products[p]||0)+1);
-  d.history.push({date:new Date().toISOString(),type:"paid",products:soldProducts});
-  saveData(currentCustomer,d);
-
-  if(cloudUser){
-    try{
-      const counts={};
-      soldProducts.forEach(p=>counts[p]=(counts[p]||0)+1);
-      const tx=Object.entries(counts).map(([product,quantity])=>({
-        type:"paid",product,quantity
-      }));
-      await saveCustomerToCloud(currentCustomer,d,tx);
-      cloudNotice("Sale saved to cloud."); markCloudSync();
-    }catch(e){
-      console.error(e);
-      setCloudUI("Sale saved locally, but cloud sync failed.","warn");
-    }
-  }
-
-  const nr=Math.floor(d.paid/10)-before;
-  purchase=[];
-  renderCustomer();
-  if(nr>0) celebrateReward(currentCustomer,nr);
+  if(saleSaving)return;
+  if(!currentCustomer||!purchase.length)return alert("Open customer and scan coffee first");
+  const id=validCustomerId(currentCustomer); if(!id)return alert("Customer number must contain numbers only.");
+  saleSaving=true;
+  try{
+    const before=Math.floor(getData(id).paid/10),counts={}; purchase.forEach(p=>counts[p]=(counts[p]||0)+1);
+    const items=Object.entries(counts).map(([product,quantity])=>({product,quantity}));
+    const result=await saveSaleWithQueue(id,"paid",items); const d=result.d;
+    const nr=Math.floor(d.paid/10)-before; purchase=[]; renderCustomer(); if(nr>0)celebrateReward(id,nr);
+  }finally{saleSaving=false}
 }
 async function redeemReward(){
-  if(!currentCustomer||purchase.length!==1) return alert("Open customer and scan exactly one free bag");
-  const d=getData(currentCustomer);
-  const a=Math.floor(d.paid/10)-d.freeUsed;
-  if(a<1) return alert("No free bag available");
-
-  const product=purchase[0];
-  d.freeUsed++;
-  d.history.push({date:new Date().toISOString(),type:"free",products:[product]});
-  saveData(currentCustomer,d);
-
-  if(cloudUser){
-    try{
-      await saveCustomerToCloud(currentCustomer,d,[{
-        type:"free",product,quantity:1
-      }]);
-      cloudNotice("Free bag saved to cloud."); markCloudSync();
-    }catch(e){
-      console.error(e);
-      setCloudUI("Free bag saved locally, but cloud sync failed.","warn");
-    }
-  }
-
-  purchase=[];
-  renderCustomer();
+  if(saleSaving)return;
+  if(!currentCustomer||purchase.length!==1)return alert("Open customer and scan exactly one free bag");
+  const id=validCustomerId(currentCustomer); if(!id)return alert("Customer number must contain numbers only.");
+  const d0=getData(id),available=Math.floor(d0.paid/10)-d0.freeUsed; if(available<1)return alert("No free bag available");
+  saleSaving=true;
+  try{await saveSaleWithQueue(id,"free",[{product:purchase[0],quantity:1}]);purchase=[];renderCustomer()}finally{saleSaving=false}
 }
 function clearPurchase(){purchase=[];renderPurchase()}
+function cancelPurchase(){
+  purchase=[];
+  renderPurchase();
+  stopScanner();
+  const status=document.getElementById('scanStatus');
+  if(status) status.textContent="Purchase cancelled. Customer remains open.";
+}
 
 
 let quickSaleFile=null;
@@ -1118,55 +1190,22 @@ async function ensureQuickCustomer(id){
 }
 
 async function confirmQuickSale(){
-  const id=(document.getElementById("quickCustomerId").value||"").trim();
+  if(quickSaleSaving)return;
+  const id=validCustomerId(document.getElementById("quickCustomerId").value||"");
   const product=document.getElementById("quickCoffee").value;
-  const qty=Math.max(1,Number(document.getElementById("quickQuantity").value||1));
-
-  if(!id) return alert("Check the customer number first.");
-  if(!product) return alert("Check the coffee first.");
-
-  const d=await ensureQuickCustomer(id);
-  const rewardsBefore=Math.floor(d.paid/10);
-
-  d.paid+=qty;
-  d.products[product]=(d.products[product]||0)+qty;
-  d.history.push({
-    date:new Date().toISOString(),
-    type:"paid",
-    products:Array(qty).fill(product)
-  });
-
-  saveData(id,d);
-
-  if(cloudUser){
-    try{
-      await saveCustomerToCloud(id,d,[{
-        type:"paid",
-        product,
-        quantity:qty
-      }]);
-      markCloudSync();
-    }catch(e){
-      console.error(e);
-      return alert("Saved locally, but cloud sync failed: "+e.message);
-    }
-  }
-
-  const rewardsAfter=Math.floor(d.paid/10);
-  const newRewards=rewardsAfter-rewardsBefore;
-
-  currentCustomer=id;
-  document.getElementById("customer").value=id;
-  renderCustomer();
-
-  document.getElementById("quickAiStatus").innerHTML=
-    `<div class="ok">✅ Saved: Customer ${id} — ${product} × ${qty}</div>`;
-
-  if(newRewards>0) celebrateReward(id,newRewards);
-
-  await markPendingQuickSaleDone();
-  resetQuickSale(false);
-  await loadQuickSalePending();
+  const qty=Math.max(1,Math.min(20,Number(document.getElementById("quickQuantity").value||1)));
+  if(!id)return alert("Customer number must contain numbers only. Check the fidelity card.");
+  if(!product)return alert("Check the coffee first.");
+  document.getElementById("quickCustomerId").value=id;
+  quickSaleSaving=true;
+  try{
+    const existing=await ensureQuickCustomer(id),before=Math.floor(existing.paid/10);
+    const result=await saveSaleWithQueue(id,"paid",[{product,quantity:qty}]),d=result.d;
+    currentCustomer=id;document.getElementById("customer").value=id;renderCustomer();
+    document.getElementById("quickAiStatus").innerHTML=`<div class="ok">✅ ${result.queued?"Saved locally / waiting for sync":"Saved to cloud"}: Customer ${id} — ${product} × ${qty}</div>`;
+    const nr=Math.floor(d.paid/10)-before;if(nr>0)celebrateReward(id,nr);
+    await markPendingQuickSaleDone();resetQuickSale(false);await loadQuickSalePending();
+  }finally{quickSaleSaving=false}
 }
 
 async function uploadQuickSalePhoto(){
@@ -1435,6 +1474,8 @@ function commitPendingInventory(){
     document.getElementById('inventoryScanStatus').innerHTML=
       `<div class="ok">${q} × ${p} added to morning stock.</div>`;
   }else if(inventoryStage==="evening"){
+    const morning=Number(inventoryMorning[p]||0);
+    if(q>morning){alert(`${p}: evening stock (${q}) cannot be greater than morning stock (${morning}). Please correct the count.`);return false}
     inventoryEvening[p]=q;
     eveningCounted[p]=true;
     document.getElementById('inventoryScanStatus').innerHTML=
@@ -1483,7 +1524,7 @@ renderInventoryCurrent();renderMarketResult()}
 
 function renderInventoryCurrent(){const el=document.getElementById('inventoryCurrent');if(inventoryStage==="morning"||inventoryStage==="waiting"){const e=Object.entries(inventoryMorning);if(!e.length){el.textContent="No morning inventory entered yet.";return}const t=e.reduce((s,[,n])=>s+Number(n||0),0);el.innerHTML=e.map(([p,n])=>`<div class="item">${p}: <b>${n}</b> bags</div>`).join('')+`<div class="item"><b>Total: ${t} bags = ${(t*.5).toFixed(1)} kg</b></div>`;return}const prods=Object.keys(inventoryMorning);el.innerHTML=prods.map(p=>eveningCounted[p]?`<div class="item">${p}: <b>${Number(inventoryEvening[p]||0)}</b> bags${Number(inventoryEvening[p]||0)===0?' — SOLD OUT':''}</div>`:`<div class="item">${p}: <b>NOT COUNTED</b></div>`).join('')}
 
-function renderMarketResult(){const el=document.getElementById('marketResult'),mt=Object.values(inventoryMorning).reduce((a,b)=>a+Number(b||0),0);if(!mt){el.textContent="Morning and evening counts are needed.";return}if(inventoryStage==="morning"){el.innerHTML=`Morning stock: <b>${mt} bags</b> (${(mt*.5).toFixed(1)} kg).`;return}if(inventoryStage==="waiting"){el.innerHTML=`<div class="ok">Morning stock saved: <b>${mt} bags</b>.</div>`;return}let total=0;const rows=Object.keys(inventoryMorning).map(p=>{const am=Number(inventoryMorning[p]||0);if(!eveningCounted[p])return `<div>${p}</div><div>${am}</div><div>—</div><div><b>NOT COUNTED</b></div>`;const pm=Number(inventoryEvening[p]||0),sold=Math.max(0,am-pm);total+=sold;return `<div>${p}</div><div>${am}</div><div>${pm}</div><div><b>${sold}</b></div>`}).join('');el.innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${rows}</div><div class="item"><b>${inventoryStage==="finished"?"FINAL":"Current"}: ${total} bags sold = ${(total*.5).toFixed(1)} kg</b></div>`}
+function renderMarketResult(){const el=document.getElementById('marketResult'),mt=Object.values(inventoryMorning).reduce((a,b)=>a+Number(b||0),0);if(!mt){el.textContent="Morning and evening counts are needed.";return}if(inventoryStage==="morning"){el.innerHTML=`Morning stock: <b>${mt} bags</b> (${(mt*.5).toFixed(1)} kg).`;return}if(inventoryStage==="waiting"){el.innerHTML=`<div class="ok">Morning stock saved: <b>${mt} bags</b>.</div>`;return}let total=0;const rows=Object.keys(inventoryMorning).map(p=>{const am=Number(inventoryMorning[p]||0);if(!eveningCounted[p])return `<div>${p}</div><div>${am}</div><div>—</div><div><b>NOT COUNTED</b></div>`;const pm=Number(inventoryEvening[p]||0);if(pm>am)return `<div class="danger-text">${p}</div><div>${am}</div><div>${pm}</div><div class="danger-text"><b>CHECK</b></div>`;const sold=am-pm;total+=sold;return `<div>${p}</div><div>${am}</div><div>${pm}</div><div><b>${sold}</b></div>`}).join('');el.innerHTML=`<div class="summary-grid"><div class="summary-head">Coffee</div><div class="summary-head">AM</div><div class="summary-head">PM</div><div class="summary-head">Sold</div>${rows}</div><div class="item"><b>${inventoryStage==="finished"?"FINAL":"Current"}: ${total} bags sold = ${(total*.5).toFixed(1)} kg</b></div>`}
 
 async function finishMarket(){
   if(inventoryStage==="evening" && inventoryProduct){
@@ -1497,6 +1538,9 @@ async function finishMarket(){
       "\n\nScan each coffee and enter what remains, or use SOLD OUT = 0 / NO SALES."
     );
   }
+
+  const impossible=Object.keys(inventoryMorning).filter(p=>Number(inventoryEvening[p]||0)>Number(inventoryMorning[p]||0));
+  if(impossible.length)return alert("Please correct evening counts greater than morning stock: "+impossible.join(", "));
 
   const sold={};
   Object.keys(inventoryMorning).forEach(p=>{
@@ -1581,6 +1625,7 @@ async function playRewardSound(){if(!audioCtx||!soundEnabled)return;if(audioCtx.
   document.getElementById('marketLocation').addEventListener('change',loadMarketDraft);
 
   await refreshCloudSession();
+updateSyncState();
 
   if(window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery")){
     const box=document.getElementById("recoveryBox");
