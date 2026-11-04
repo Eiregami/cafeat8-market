@@ -159,7 +159,7 @@ video{border:1px solid #2f2a27}
     <div class="brand-title">Cafeat8 Market</div>
     <div class="brand-subtitle">Inventory · Loyalty · AI Quick Sale</div>
   </div>
-  <div class="version-pill">v27.4 QR Robust</div>
+  <div class="version-pill">v27.5 QR Diagnostic</div>
 </header>
 
 <div class="card" id="cloudCard">
@@ -1072,33 +1072,126 @@ function productFromText(t){const raw=(t||"").trim();let m=raw.match(/PRODUCT=([
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]||c))}
 
-async function startScannerOn(videoId,cb,statusId){
-  stopScanner(); lastText=""; lastTime=0;
-  const status=document.getElementById(statusId);
-  const video=document.getElementById(videoId);
-  try{
-    if(!window.ZXingBrowser) throw new Error("QR scanner library did not load");
-    if(!navigator.mediaDevices?.getUserMedia) throw new Error("Camera access is not available in this browser");
-    video.setAttribute("playsinline",""); video.muted=true; video.autoplay=true;
-    const r=new ZXingBrowser.BrowserQRCodeReader();
-    controls=await r.decodeFromVideoDevice(undefined,video,(result,error)=>{
-      if(result){
-        const text=result.getText(),now=Date.now();
-        if(text===lastText&&now-lastTime<1500)return;
-        lastText=text; lastTime=now;
-        cb(text);
+async function startScannerOn(videoId, cb, statusId) {
+  stopScanner();
+  lastText = "";
+  lastTime = 0;
+
+  const status = document.getElementById(statusId);
+  const video = document.getElementById(videoId);
+
+  if (!status || !video) return;
+
+  status.innerHTML = '<div class="muted">Starting camera…</div>';
+
+  try {
+    if (!window.ZXingBrowser) throw new Error("QR scanner library did not load");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera access is not available in this browser");
+    }
+
+    video.setAttribute("playsinline", "");
+    video.setAttribute("muted", "");
+    video.setAttribute("autoplay", "");
+    video.muted = true;
+    video.playsInline = true;
+
+    const reader = new ZXingBrowser.BrowserQRCodeReader();
+
+    controls = await reader.decodeFromConstraints(
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      },
+      video,
+      (result, error) => {
+        if (result) {
+          const text = result.getText();
+          const now = Date.now();
+
+          if (text === lastText && now - lastTime < 1500) return;
+          lastText = text;
+          lastTime = now;
+
+          status.innerHTML =
+            `<div class="ok">QR detected. Raw text: <span style="font-size:13px;word-break:break-all">${escapeHtml(text)}</span></div>`;
+
+          cb(text);
+          return;
+        }
+
+        if (error && error.name && error.name !== "NotFoundException") {
+          console.warn("ZXing decode error", error);
+        }
       }
-    });
-    status.innerHTML='<div class="ok">Camera active — hold the QR steady inside the picture.</div>';
-  }catch(e){
-    console.error("QR scanner error",e);
-    status.innerHTML=`<div class="warn"><b>Camera scanner could not start.</b><br>${escapeHtml(e?.message||String(e))}<br>You can still choose/type the coffee manually below.</div>`;
-    controls=null;
+    );
+
+    video.addEventListener("loadedmetadata", () => {
+      status.innerHTML =
+        `<div class="ok">Camera active — ${video.videoWidth}×${video.videoHeight}. Hold the QR steady.</div>`;
+    }, { once: true });
+
+  } catch (e) {
+    console.error("QR scanner error", e);
+    status.innerHTML =
+      `<div class="warn"><b>Camera scanner could not start.</b><br>${escapeHtml(e?.message || String(e))}<br>You can still choose/type the coffee manually below.</div>`;
+    controls = null;
   }
 }
-function stopScanner(){if(controls){try{controls.stop()}catch(e){}controls=null}["videoSales","videoInventory"].forEach(id=>{const v=document.getElementById(id);if(v&&v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null}})}
 
-function startSalesScanner(){if(!currentCustomer)return alert("Open a customer first");startScannerOn("videoSales",(text)=>{const p=productFromText(text);if(!p){document.getElementById('scanStatus').innerHTML=`<div class="warn"><b>QR read, but coffee not recognized.</b><br><span style="font-size:14px;word-break:break-all">${escapeHtml(text)}</span></div>`;return;}const input=document.getElementById('manualCoffee');const qtyInput=document.getElementById('manualCoffeeQty');input.value=p;qtyInput.value='1';document.getElementById('scanStatus').innerHTML=`<div class="ok">✓ ${p} selected — enter how many bags, then press ADD COFFEE.</div>`;document.getElementById('manualCoffeeStatus').innerHTML=`<div class="ok">Selected from QR: ${p}</div>`;stopScanner();qtyInput.focus();qtyInput.select()},"scanStatus")}
+function stopScanner() {
+  if (controls) {
+    try { controls.stop(); } catch (e) {}
+    controls = null;
+  }
+
+  ["videoSales", "videoInventory"].forEach(id => {
+    const v = document.getElementById(id);
+    if (v && v.srcObject) {
+      v.srcObject.getTracks().forEach(t => t.stop());
+      v.srcObject = null;
+    }
+  });
+
+  lastText = "";
+  lastTime = 0;
+}
+
+function startSalesScanner() {
+  if (!currentCustomer) return alert("Open a customer first");
+
+  startScannerOn("videoSales", (text) => {
+    const p = productFromText(text);
+    const status = document.getElementById('scanStatus');
+
+    if (!p) {
+      status.innerHTML =
+        `<div class="warn"><b>QR read, but coffee not recognized.</b><br>` +
+        `Raw: <span style="font-size:13px;word-break:break-all">${escapeHtml(text)}</span><br>` +
+        `Canonical: ${escapeHtml(canonicalize(text))}</div>`;
+      return;
+    }
+
+    const input = document.getElementById('manualCoffee');
+    const qtyInput = document.getElementById('manualCoffeeQty');
+    input.value = p;
+    qtyInput.value = '1';
+
+    status.innerHTML =
+      `<div class="ok">✓ ${p} selected — enter how many bags, then press ADD COFFEE.</div>`;
+
+    document.getElementById('manualCoffeeStatus').innerHTML =
+      `<div class="ok">Selected from QR: ${p}</div>`;
+
+    stopScanner();
+    qtyInput.focus();
+    qtyInput.select();
+  }, "scanStatus");
+}
 function addManualCoffee(){
   if(!currentCustomer)return alert("Open a customer first");
   const input=document.getElementById('manualCoffee');
